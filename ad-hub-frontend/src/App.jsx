@@ -42,7 +42,8 @@ export default function App() {
                 try {
                     const me = await userAPI.getMe();
                     const role = me.role?.name || me.roleName || '';
-                    setIsAdmin(role === 'ADMIN');
+                    const isUserAdmin = role === 'ADMIN';
+                    setIsAdmin(isUserAdmin);
                 } catch (error) {
                     console.error('Ошибка при получении данных пользователя:', error);
                     setIsAdmin(false);
@@ -53,6 +54,14 @@ export default function App() {
         };
         checkAuth();
     }, [isAuthenticated]);
+
+    // Перенаправляем администратора на панель администратора при загрузке или изменении роли
+    useEffect(() => {
+        if (isAuthenticated && isAdmin && currentPage === 'home') {
+            console.log('Перенаправление администратора на панель администратора');
+            setCurrentPage('admin');
+        }
+    }, [isAuthenticated, isAdmin, currentPage]);
 
     const handleLogin = async () => {
         console.log('handleLogin вызван');
@@ -68,7 +77,6 @@ export default function App() {
         
         console.log('Токены найдены, обновляем состояние');
         setIsAuthenticated(true);
-        setCurrentPage('home');
         
         // Проверяем роль после входа
         try {
@@ -76,11 +84,21 @@ export default function App() {
             const me = await userAPI.getMe();
             console.log('Данные пользователя получены:', me);
             const role = me.role?.name || me.roleName || '';
-            setIsAdmin(role === 'ADMIN');
-            console.log('Роль пользователя:', role, 'isAdmin:', role === 'ADMIN');
+            const isUserAdmin = role === 'ADMIN';
+            setIsAdmin(isUserAdmin);
+            console.log('Роль пользователя:', role, 'isAdmin:', isUserAdmin);
+            
+            // Если пользователь администратор, открываем панель администратора
+            if (isUserAdmin) {
+                console.log('Пользователь администратор, открываем панель администратора');
+                setCurrentPage('admin');
+            } else {
+                setCurrentPage('home');
+            }
         } catch (error) {
             console.error('Ошибка при получении данных пользователя:', error);
             setIsAdmin(false);
+            setCurrentPage('home');
         }
     };
 
@@ -214,6 +232,11 @@ export default function App() {
                 return <AdminPanel {...commonProps} />;
 
             default:
+                // Если пользователь администратор и находится на главной странице, перенаправляем на панель администратора
+                if (isAuthenticated && isAdmin && currentPage === 'home') {
+                    return <AdminPanel {...commonProps} />;
+                }
+                
                 return (
                     <div className={isDarkTheme ? 'min-h-screen bg-neutral-950' : 'min-h-screen bg-stone-100'}>
                         <Header
