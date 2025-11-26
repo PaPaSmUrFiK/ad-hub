@@ -182,6 +182,11 @@ export default function App() {
         onNavigate: setCurrentPage,
         isAdmin
     };
+    
+    // Логируем commonProps при изменении isAdmin
+    useEffect(() => {
+        console.log('[App] commonProps обновлены - isAdmin:', commonProps.isAdmin, 'isAuthenticated:', commonProps.isAuthenticated);
+    }, [isAdmin, isAuthenticated]);
 
     // Рендер страниц
     const renderPage = () => {
@@ -256,13 +261,14 @@ export default function App() {
                 return <CategoriesPage {...commonProps} />;
 
             case 'admin':
+                console.log('[App] Рендеринг AdminPanel - isAdmin из commonProps:', commonProps.isAdmin);
                 return <AdminPanel {...commonProps} initialTab={searchParams.adminTab || 'users'} />;
 
             default:
                 // Если пользователь администратор и находится на главной странице, показываем панель администратора
                 // Строгая проверка: только для роли ADMIN, не для MODERATOR
                 if (isAuthenticated && isAdmin && currentPage === 'home') {
-                    console.log('Рендеринг панели администратора вместо главной страницы (isAdmin:', isAdmin, ')');
+                    console.log('[App] Рендеринг AdminPanel из default case - isAdmin:', isAdmin, 'commonProps.isAdmin:', commonProps.isAdmin);
                     return <AdminPanel {...commonProps} />;
                 }
                 

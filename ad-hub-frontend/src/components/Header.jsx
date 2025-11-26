@@ -45,41 +45,49 @@ export function Header({
 
                         {/* Navigation Tabs */}
                         <nav className="hidden md:flex items-center gap-1">
-                            {isAuthenticated && isAdmin ? (
-                                // Навигация для администратора
-                                <>
-                                    <button
-                                        onClick={() => {
-                                            onNavigate?.('admin');
-                                            // Переключаем вкладку через глобальную функцию
-                                            setTimeout(() => {
-                                                if (window.setAdminTab) {
-                                                    window.setAdminTab('users');
-                                                }
-                                            }, 0);
-                                        }}
-                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                    >
-                                        <Users className="h-4 w-4" />
-                                        Пользователи
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            onNavigate?.('admin');
-                                            // Переключаем вкладку через глобальную функцию
-                                            setTimeout(() => {
-                                                if (window.setAdminTab) {
-                                                    window.setAdminTab('statistics');
-                                                }
-                                            }, 0);
-                                        }}
-                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                    >
-                                        <BarChart3 className="h-4 w-4" />
-                                        Статистика
-                                    </button>
-                                </>
-                            ) : (
+                            {(() => {
+                                // Логируем для отладки
+                                console.log('[Header] Рендер навигации - isAuthenticated:', isAuthenticated, 'isAdmin:', isAdmin, 'currentPage:', currentPage);
+                                const showAdminNav = isAuthenticated && isAdmin;
+                                console.log('[Header] Показывать админ навигацию:', showAdminNav);
+                                
+                                return showAdminNav ? (
+                                    // Навигация для администратора
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                console.log('[Header] Клик на Пользователи');
+                                                onNavigate?.('admin');
+                                                // Переключаем вкладку через глобальную функцию
+                                                setTimeout(() => {
+                                                    if (window.setAdminTab) {
+                                                        window.setAdminTab('users');
+                                                    }
+                                                }, 0);
+                                            }}
+                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                        >
+                                            <Users className="h-4 w-4" />
+                                            Пользователи
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                console.log('[Header] Клик на Статистика');
+                                                onNavigate?.('admin');
+                                                // Переключаем вкладку через глобальную функцию
+                                                setTimeout(() => {
+                                                    if (window.setAdminTab) {
+                                                        window.setAdminTab('statistics');
+                                                    }
+                                                }, 0);
+                                            }}
+                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                        >
+                                            <BarChart3 className="h-4 w-4" />
+                                            Статистика
+                                        </button>
+                                    </>
+                                ) : (
                                 // Навигация для обычных пользователей
                                 <>
                                     <button

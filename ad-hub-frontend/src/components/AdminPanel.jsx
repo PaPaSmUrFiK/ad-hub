@@ -16,8 +16,10 @@ export function AdminPanel({
     onLogout,
     onNavigate,
     initialTab = 'users',
-    isAdmin = true, // По умолчанию true, так как это панель администратора
+    isAdmin = true, // По умолчанию true, так как это панель администратора, но должно передаваться из App.jsx
 }) {
+    // Логируем для отладки
+    console.log('[AdminPanel] Рендер - isAdmin:', isAdmin, 'isAuthenticated:', isAuthenticated);
     const [activeTab, setActiveTab] = useState(initialTab);
     
     // Обновляем активную вкладку при изменении initialTab
@@ -139,6 +141,7 @@ export function AdminPanel({
                 onToggleTheme={onToggleTheme}
                 currentPage="admin"
                 onNavigate={onNavigate}
+                isAdmin={isAdmin}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
