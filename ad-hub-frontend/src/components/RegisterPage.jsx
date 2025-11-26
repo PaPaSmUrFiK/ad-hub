@@ -156,10 +156,13 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
             return;
         }
 
-        // Валидация формата телефона
-        if (!validatePhoneFormat(formData.phone)) {
-            setError('Формат телефона: +375 (XX) XXX-XX-XX');
-            return;
+        // Валидация формата телефона (если указан)
+        if (formData.phone && formData.phone.trim()) {
+            const phoneError = validatePhone(formData.phone, false);
+            if (phoneError) {
+                setError(phoneError);
+                return;
+            }
         }
 
         // Валидация длины полей
@@ -185,21 +188,39 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                 phone: formData.phone?.trim() || null,
             };
 
-            await authAPI.register(registerData);
+            console.log('Попытка регистрации с данными:', { ...registerData, password: '***' });
+            const response = await authAPI.register(registerData);
+            console.log('Ответ от сервера:', response);
+            
+            // Проверяем, что токены были сохранены
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            if (!accessToken || !refreshToken) {
+                console.error('Токены не были сохранены!');
+                setError('Ошибка при сохранении токенов авторизации');
+                setLoading(false);
+                return;
+            }
+            
+            console.log('Токены успешно сохранены');
+            
+            // Вызываем callback для обновления состояния приложения
             if (onRegister) {
+                console.log('Вызываем onRegister callback');
                 onRegister();
+            } else {
+                console.warn('onRegister callback не передан');
             }
         } catch (err) {
             // Улучшенная обработка ошибок
+            console.error('Ошибка при регистрации:', err);
             let errorMessage = 'Ошибка при регистрации. Попробуйте снова.';
             
             if (err.message) {
                 errorMessage = err.message;
-                // Обработка ошибок валидации от backend
-                if (errorMessage.includes(':')) {
-                    // Если ошибка содержит несколько полей, показываем все
-                    errorMessage = errorMessage;
-                }
+            } else if (err.response) {
+                errorMessage = err.response.message || errorMessage;
             }
             
             setError(errorMessage);

@@ -77,17 +77,43 @@ async function fetchAPI(endpoint, options = {}) {
 export const authAPI = {
     // Регистрация
     register: async (registerData) => {
-        const response = await fetchAPI('/auth/register', {
-            method: 'POST',
-            body: JSON.stringify(registerData),
-        });
+        console.log('authAPI.register вызван с данными:', { ...registerData, password: '***' });
         
-        // Сохраняем токены
-        if (response.accessToken && response.refreshToken) {
-            tokenStorage.setTokens(response.accessToken, response.refreshToken);
+        try {
+            const response = await fetchAPI('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify(registerData),
+            });
+            
+            console.log('Ответ от fetchAPI:', response);
+            
+            // Проверяем наличие токенов в ответе
+            if (!response || (!response.accessToken && !response.refreshToken)) {
+                console.error('Сервер не вернул токены авторизации. Ответ:', response);
+                throw new Error('Сервер не вернул токены авторизации');
+            }
+            
+            // Сохраняем токены
+            if (response.accessToken && response.refreshToken) {
+                tokenStorage.setTokens(response.accessToken, response.refreshToken);
+                console.log('Токены успешно сохранены в localStorage');
+            } else {
+                console.error('Неполные данные авторизации получены от сервера:', response);
+                throw new Error('Неполные данные авторизации получены от сервера');
+            }
+            
+            return response;
+        } catch (error) {
+            // Логируем ошибку для отладки
+            console.error('Ошибка в authAPI.register:', error);
+            
+            // Пробрасываем ошибку дальше с понятным сообщением
+            if (error.message) {
+                throw error;
+            } else {
+                throw new Error('Ошибка при регистрации. Проверьте данные и попробуйте снова.');
+            }
         }
-        
-        return response;
     },
 
     // Вход
