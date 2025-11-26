@@ -41,9 +41,22 @@ export default function App() {
             if (authenticated) {
                 try {
                     const me = await userAPI.getMe();
+                    console.log('Данные пользователя при загрузке:', me);
+                    
+                    // Извлекаем роль из ответа (может быть в разных форматах)
                     const role = me.role?.name || me.roleName || '';
+                    console.log('Извлеченная роль:', role);
+                    
+                    // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
                     const isUserAdmin = role === 'ADMIN';
+                    console.log('Проверка роли ADMIN:', isUserAdmin, '(роль:', role, ')');
+                    
                     setIsAdmin(isUserAdmin);
+                    
+                    // Если роль не ADMIN, явно логируем это
+                    if (role && role !== 'ADMIN') {
+                        console.log('Пользователь не администратор. Роль:', role);
+                    }
                 } catch (error) {
                     console.error('Ошибка при получении данных пользователя:', error);
                     setIsAdmin(false);
@@ -58,8 +71,10 @@ export default function App() {
     // Перенаправляем администратора на панель администратора при загрузке или изменении роли
     useEffect(() => {
         if (isAuthenticated && isAdmin && currentPage === 'home') {
-            console.log('Перенаправление администратора на панель администратора');
+            console.log('✓ Перенаправление АДМИНИСТРАТОРА на панель администратора (isAdmin:', isAdmin, ')');
             setCurrentPage('admin');
+        } else if (isAuthenticated && !isAdmin && currentPage === 'home') {
+            console.log('Пользователь не администратор, остается на главной странице (isAdmin:', isAdmin, ')');
         }
     }, [isAuthenticated, isAdmin, currentPage]);
 
@@ -83,16 +98,28 @@ export default function App() {
             console.log('Получаем данные пользователя...');
             const me = await userAPI.getMe();
             console.log('Данные пользователя получены:', me);
+            
+            // Извлекаем роль из ответа (может быть в разных форматах)
             const role = me.role?.name || me.roleName || '';
+            console.log('Извлеченная роль при входе:', role);
+            
+            // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
             const isUserAdmin = role === 'ADMIN';
+            console.log('Проверка роли ADMIN при входе:', isUserAdmin, '(роль:', role, ')');
+            
             setIsAdmin(isUserAdmin);
-            console.log('Роль пользователя:', role, 'isAdmin:', isUserAdmin);
             
             // Если пользователь администратор, открываем панель администратора
             if (isUserAdmin) {
-                console.log('Пользователь администратор, открываем панель администратора');
+                console.log('✓ Пользователь является АДМИНИСТРАТОРОМ (ADMIN), открываем панель администратора');
                 setCurrentPage('admin');
             } else {
+                // Явно логируем, если это не администратор
+                if (role) {
+                    console.log('Пользователь НЕ администратор. Роль:', role, '- открываем главную страницу');
+                } else {
+                    console.log('Роль не определена - открываем главную страницу');
+                }
                 setCurrentPage('home');
             }
         } catch (error) {
@@ -232,8 +259,10 @@ export default function App() {
                 return <AdminPanel {...commonProps} />;
 
             default:
-                // Если пользователь администратор и находится на главной странице, перенаправляем на панель администратора
+                // Если пользователь администратор и находится на главной странице, показываем панель администратора
+                // Строгая проверка: только для роли ADMIN, не для MODERATOR
                 if (isAuthenticated && isAdmin && currentPage === 'home') {
+                    console.log('Рендеринг панели администратора вместо главной страницы (isAdmin:', isAdmin, ')');
                     return <AdminPanel {...commonProps} />;
                 }
                 
