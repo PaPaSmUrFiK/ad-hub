@@ -15,8 +15,27 @@ export function AdminPanel({
     onLoginClick,
     onLogout,
     onNavigate,
+    initialTab = 'users',
+    isAdmin = true, // По умолчанию true, так как это панель администратора
 }) {
-    const [activeTab, setActiveTab] = useState('users');
+    const [activeTab, setActiveTab] = useState(initialTab);
+    
+    // Обновляем активную вкладку при изменении initialTab
+    useEffect(() => {
+        if (initialTab) {
+            setActiveTab(initialTab);
+        }
+    }, [initialTab]);
+    
+    // Экспортируем функцию для переключения вкладок через window (для Header)
+    useEffect(() => {
+        window.setAdminTab = (tab) => {
+            setActiveTab(tab);
+        };
+        return () => {
+            delete window.setAdminTab;
+        };
+    }, []);
     const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -65,6 +84,7 @@ export function AdminPanel({
                     onToggleTheme={onToggleTheme}
                     currentPage="admin"
                     onNavigate={onNavigate}
+                    isAdmin={isAdmin}
                 />
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <p className={textMuted}>Загрузка...</p>
@@ -87,6 +107,7 @@ export function AdminPanel({
                     onToggleTheme={onToggleTheme}
                     currentPage="admin"
                     onNavigate={onNavigate}
+                    isAdmin={isAdmin}
                 />
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <div className={`${cardBg} rounded-xl border ${borderColor} p-8 max-w-md text-center`}>

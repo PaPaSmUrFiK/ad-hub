@@ -256,7 +256,7 @@ export default function App() {
                 return <CategoriesPage {...commonProps} />;
 
             case 'admin':
-                return <AdminPanel {...commonProps} />;
+                return <AdminPanel {...commonProps} initialTab={searchParams.adminTab || 'users'} />;
 
             default:
                 // Если пользователь администратор и находится на главной странице, показываем панель администратора

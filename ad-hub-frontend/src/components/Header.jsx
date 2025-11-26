@@ -1,4 +1,4 @@
-import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield } from 'lucide-react';
+import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, Users, BarChart3 } from 'lucide-react';
 import { Button } from './ui/button.jsx';
 import {
     DropdownMenu,
@@ -45,24 +45,63 @@ export function Header({
 
                         {/* Navigation Tabs */}
                         <nav className="hidden md:flex items-center gap-1">
-                            <button
-                                onClick={() => onNavigate?.('home')}
-                                className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
-                            >
-                                Главная
-                            </button>
-                            <button
-                                onClick={() => onNavigate?.('all-listings')}
-                                className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
-                            >
-                                Объявления
-                            </button>
-                            <button
-                                onClick={() => onNavigate?.('categories')}
-                                className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
-                            >
-                                Категории
-                            </button>
+                            {isAuthenticated && isAdmin ? (
+                                // Навигация для администратора
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            onNavigate?.('admin');
+                                            // Переключаем вкладку через глобальную функцию
+                                            setTimeout(() => {
+                                                if (window.setAdminTab) {
+                                                    window.setAdminTab('users');
+                                                }
+                                            }, 0);
+                                        }}
+                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                    >
+                                        <Users className="h-4 w-4" />
+                                        Пользователи
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            onNavigate?.('admin');
+                                            // Переключаем вкладку через глобальную функцию
+                                            setTimeout(() => {
+                                                if (window.setAdminTab) {
+                                                    window.setAdminTab('statistics');
+                                                }
+                                            }, 0);
+                                        }}
+                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                    >
+                                        <BarChart3 className="h-4 w-4" />
+                                        Статистика
+                                    </button>
+                                </>
+                            ) : (
+                                // Навигация для обычных пользователей
+                                <>
+                                    <button
+                                        onClick={() => onNavigate?.('home')}
+                                        className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
+                                    >
+                                        Главная
+                                    </button>
+                                    <button
+                                        onClick={() => onNavigate?.('all-listings')}
+                                        className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
+                                    >
+                                        Объявления
+                                    </button>
+                                    <button
+                                        onClick={() => onNavigate?.('categories')}
+                                        className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
+                                    >
+                                        Категории
+                                    </button>
+                                </>
+                            )}
                         </nav>
                     </div>
 
