@@ -30,6 +30,7 @@ public class AdminUserService {
     private final AdRepository adRepository;
     private final UserRoleRepository userRoleRepository;
 
+    @Transactional(readOnly = true)
     public UserListResponse getUsers(Integer page, Integer size, String search) {
         Pageable pageable = PageRequest.of(
                 page != null && page > 0 ? page - 1 : 0,
@@ -43,6 +44,13 @@ public class AdminUserService {
         } else {
             userPage = userRepository.findAll(pageable);
         }
+
+        // Инициализируем роли для всех пользователей в рамках транзакции
+        userPage.getContent().forEach(user -> {
+            if (user.getRole() != null) {
+                user.getRole().getName(); // Инициализируем ленивую загрузку
+            }
+        });
 
         List<UserListResponse.UserListItem> userItems = userPage.getContent().stream()
                 .map(user -> {
@@ -107,7 +115,7 @@ public class AdminUserService {
 
     @org.springframework.transaction.annotation.Transactional
     public void updateUserRole(Long userId, UpdateUserRoleRequest request) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdWithRole(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         UserRole newRole = userRoleRepository.findByName(request.roleName())
@@ -123,7 +131,7 @@ public class AdminUserService {
 
     @org.springframework.transaction.annotation.Transactional
     public void deleteUser(Long userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdWithRole(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         // Проверяем, что пользователь не является последним администратором

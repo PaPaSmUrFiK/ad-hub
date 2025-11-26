@@ -23,16 +23,19 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional(readOnly = true)
     public User getCurrentUser(Long userId) {
-        return userRepository.findById(userId)
+        return userRepository.findByIdWithRole(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
     }
 
+    @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
         User user = getCurrentUser(userId);
         return mapToProfileResponse(user);
     }
 
+    @Transactional(readOnly = true)
     public UserMeResponse getMe(Long userId) {
         User user = getCurrentUser(userId);
         boolean isProfileFilled = user.getFirstName() != null &&
