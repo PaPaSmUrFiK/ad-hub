@@ -88,28 +88,29 @@ export function Header({
                                         </button>
                                     </>
                                 ) : (
-                                // Навигация для обычных пользователей
-                                <>
-                                    <button
-                                        onClick={() => onNavigate?.('home')}
-                                        className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
-                                    >
-                                        Главная
-                                    </button>
-                                    <button
-                                        onClick={() => onNavigate?.('all-listings')}
-                                        className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
-                                    >
-                                        Объявления
-                                    </button>
-                                    <button
-                                        onClick={() => onNavigate?.('categories')}
-                                        className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
-                                    >
-                                        Категории
-                                    </button>
-                                </>
-                            )}
+                                    // Навигация для обычных пользователей
+                                    <>
+                                        <button
+                                            onClick={() => onNavigate?.('home')}
+                                            className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
+                                        >
+                                            Главная
+                                        </button>
+                                        <button
+                                            onClick={() => onNavigate?.('all-listings')}
+                                            className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
+                                        >
+                                            Объявления
+                                        </button>
+                                        <button
+                                            onClick={() => onNavigate?.('categories')}
+                                            className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
+                                        >
+                                            Категории
+                                        </button>
+                                    </>
+                                );
+                            })()}
                         </nav>
                     </div>
 
