@@ -90,8 +90,17 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         log.info("Попытка входа для пользователя с email: {}", request.email());
 
-        User user = userRepository.findByEmail(request.email())
+        // Используем метод с JOIN FETCH для загрузки роли вместе с пользователем
+        User user = userRepository.findByEmailWithRole(request.email())
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + request.email() + " не найден"));
+        
+        // Проверяем, что роль загружена
+        if (user.getRole() == null) {
+            log.error("Роль пользователя не загружена для email: {}", request.email());
+            throw new IllegalStateException("Роль пользователя не загружена");
+        }
+        
+        log.info("Роль пользователя при входе: {}", user.getRole().getName());
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Неверный пароль");

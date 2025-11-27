@@ -43,9 +43,9 @@ export default function App() {
                     const me = await userAPI.getMe();
                     console.log('Данные пользователя при загрузке:', me);
                     
-                    // Извлекаем роль из ответа (может быть в разных форматах)
-                    const role = me.role?.name || me.roleName || '';
-                    console.log('Извлеченная роль:', role);
+                    // Извлекаем роль из ответа (UserMeResponse возвращает role как строку)
+                    const role = me.role || '';
+                    console.log('Извлеченная роль:', role, '(полный объект me:', me, ')');
                     
                     // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
                     const isUserAdmin = role === 'ADMIN';
@@ -99,9 +99,9 @@ export default function App() {
             const me = await userAPI.getMe();
             console.log('Данные пользователя получены:', me);
             
-            // Извлекаем роль из ответа (может быть в разных форматах)
-            const role = me.role?.name || me.roleName || '';
-            console.log('Извлеченная роль при входе:', role);
+            // Извлекаем роль из ответа (UserMeResponse возвращает role как строку)
+            const role = me.role || '';
+            console.log('Извлеченная роль при входе:', role, '(полный объект me:', me, ')');
             
             // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
             const isUserAdmin = role === 'ADMIN';

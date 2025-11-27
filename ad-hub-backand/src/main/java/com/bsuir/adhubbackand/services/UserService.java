@@ -38,6 +38,16 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserMeResponse getMe(Long userId) {
         User user = getCurrentUser(userId);
+        
+        // Проверяем, что роль загружена
+        if (user.getRole() == null) {
+            log.error("Роль пользователя не загружена для userId: {}", userId);
+            throw new IllegalStateException("Роль пользователя не загружена");
+        }
+        
+        String roleName = user.getRole().getName();
+        log.info("Получение данных пользователя: userId={}, email={}, role={}", userId, user.getEmail(), roleName);
+        
         boolean isProfileFilled = user.getFirstName() != null &&
                 user.getLastName() != null &&
                 user.getPhone() != null;
@@ -46,7 +56,7 @@ public class UserService {
                 user.getId(),
                 user.getEmail(),
                 user.getUsername(),
-                user.getRole().getName(),
+                roleName,
                 isProfileFilled
         );
     }
