@@ -33,16 +33,37 @@ export function UsersManagement({ isDarkTheme }) {
     const [newRole, setNewRole] = useState('');
     const [actionLoading, setActionLoading] = useState(null);
     const isOpeningRef = useRef(false);
+    const dialogOpenTimeoutRef = useRef(null);
 
     // Отслеживание изменений состояния диалога
     useEffect(() => {
         console.log('[UsersManagement] showRoleDialog изменился:', showRoleDialog, 'selectedUser:', selectedUser);
         if (showRoleDialog) {
-            // Сбрасываем флаг открытия после небольшой задержки
-            setTimeout(() => {
+            // Устанавливаем флаг открытия
+            isOpeningRef.current = true;
+            // Очищаем предыдущий таймаут если есть
+            if (dialogOpenTimeoutRef.current) {
+                clearTimeout(dialogOpenTimeoutRef.current);
+            }
+            // Сбрасываем флаг открытия после задержки
+            dialogOpenTimeoutRef.current = setTimeout(() => {
                 isOpeningRef.current = false;
-            }, 100);
+                console.log('[UsersManagement] Флаг isOpeningRef сброшен');
+            }, 200);
+        } else {
+            // Очищаем таймаут при закрытии
+            if (dialogOpenTimeoutRef.current) {
+                clearTimeout(dialogOpenTimeoutRef.current);
+                dialogOpenTimeoutRef.current = null;
+            }
         }
+        
+        // Очистка при размонтировании
+        return () => {
+            if (dialogOpenTimeoutRef.current) {
+                clearTimeout(dialogOpenTimeoutRef.current);
+            }
+        };
     }, [showRoleDialog, selectedUser]);
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
@@ -184,11 +205,15 @@ export function UsersManagement({ isDarkTheme }) {
             e.stopPropagation();
         }
         console.log('[UsersManagement] Открытие диалога изменения роли для пользователя:', user);
+        // Устанавливаем флаг перед изменением состояния
         isOpeningRef.current = true;
         setSelectedUser(user);
         setNewRole(user.roleName || '');
-        setShowRoleDialog(true);
-        console.log('[UsersManagement] showRoleDialog установлен в true');
+        // Используем setTimeout для асинхронного обновления состояния
+        setTimeout(() => {
+            setShowRoleDialog(true);
+            console.log('[UsersManagement] showRoleDialog установлен в true');
+        }, 0);
     };
 
     const formatDate = (dateString) => {
@@ -485,7 +510,8 @@ export function UsersManagement({ isDarkTheme }) {
                     console.log('[UsersManagement] Dialog onOpenChange вызван, open:', open, 'showRoleDialog:', showRoleDialog, 'isOpeningRef:', isOpeningRef.current);
                     // Предотвращаем закрытие, если диалог только что открылся
                     if (!open && isOpeningRef.current) {
-                        console.log('[UsersManagement] Предотвращено закрытие диалога (только что открылся)');
+                        console.log('[UsersManagement] Предотвращено закрытие диалога (только что открылся), игнорируем');
+                        // Игнорируем закрытие, но не обновляем состояние
                         return;
                     }
                     if (!open) {
@@ -493,6 +519,10 @@ export function UsersManagement({ isDarkTheme }) {
                         setShowRoleDialog(false);
                         setSelectedUser(null);
                         setNewRole('');
+                    } else if (open && !showRoleDialog) {
+                        // Если пытаемся открыть, но состояние еще не обновлено
+                        console.log('[UsersManagement] Открытие диалога через onOpenChange');
+                        setShowRoleDialog(true);
                     }
                 }}
             >
