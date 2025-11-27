@@ -43,6 +43,8 @@ public class FileStorageService {
                 fileName = folder + "/" + UUID.randomUUID() + fileExtension;
             }
 
+            log.info("Загрузка файла в папку '{}': {}", folder, fileName);
+
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucketName)
@@ -52,7 +54,7 @@ public class FileStorageService {
                             .build()
             );
 
-            log.info("Файл успешно загружен в MinIO: {}", fileName);
+            log.info("Файл успешно загружен в MinIO в папку '{}': {}", folder, fileName);
             return fileName;
 
         } catch (Exception e) {
@@ -133,6 +135,11 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * Проверяет существование bucket и создает его при необходимости.
+     * Этот метод вызывается как дополнительная проверка перед операциями с файлами.
+     * Основная инициализация bucket происходит при старте приложения в MinioConfig.
+     */
     private void ensureBucketExists() {
         try {
             boolean found = minioClient.bucketExists(BucketExistsArgs.builder()
@@ -140,18 +147,26 @@ public class FileStorageService {
                     .build());
 
             if (!found) {
-                log.info("Бакет не найден, создаем: {}", bucketName);
+                log.warn("Bucket '{}' не найден при выполнении операции, создаем...", bucketName);
                 minioClient.makeBucket(MakeBucketArgs.builder()
                         .bucket(bucketName)
                         .build());
-                log.info("Бакет успешно создан в MinIO: {}", bucketName);
+                log.info("Bucket '{}' успешно создан в MinIO", bucketName);
             }
-        } catch (ErrorResponseException | InsufficientDataException | InternalException |
-                 InvalidKeyException | InvalidResponseException | IOException |
-                 NoSuchAlgorithmException | ServerException | XmlParserException e) {
-            log.error("Ошибка при проверке/создании бакета в MinIO: {}", e.getMessage());
-            // Не бросаем исключение, чтобы приложение могло работать даже если MinIO недоступен
-            // В реальном приложении можно добавить флаг для включения/выключения MinIO
+        } catch (ErrorResponseException e) {
+            log.error("Ошибка MinIO при проверке/создании bucket '{}': {} (код: {})", 
+                    bucketName, e.getMessage(), e.errorResponse().code(), e);
+            // Пробрасываем исключение, так как без bucket операции с файлами невозможны
+            throw new FileUploadException("Ошибка MinIO: " + e.getMessage(), e);
+        } catch (InsufficientDataException | InternalException | InvalidKeyException |
+                 InvalidResponseException | IOException | NoSuchAlgorithmException |
+                 ServerException | XmlParserException e) {
+            log.error("Ошибка при проверке/создании bucket '{}' в MinIO: {}", bucketName, e.getMessage(), e);
+            // Пробрасываем исключение, так как без bucket операции с файлами невозможны
+            throw new FileUploadException("Ошибка при работе с MinIO: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Неожиданная ошибка при проверке/создании bucket '{}' в MinIO: {}", bucketName, e.getMessage(), e);
+            throw new FileUploadException("Неожиданная ошибка при работе с MinIO: " + e.getMessage(), e);
         }
     }
 
