@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { adminAPI } from '../api/admin';
 import { Plus, Edit, Trash2, Loader2, X, Check } from 'lucide-react';
 import { Button } from './ui/button';
@@ -22,6 +22,18 @@ export function CategoriesManagement({ isDarkTheme }) {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [formData, setFormData] = useState({ name: '', description: '' });
     const [actionLoading, setActionLoading] = useState(false);
+    const isOpeningRef = useRef(false);
+
+    // Отслеживание изменений состояния диалога
+    useEffect(() => {
+        console.log('[CategoriesManagement] showCreateDialog изменился:', showCreateDialog);
+        if (showCreateDialog) {
+            // Сбрасываем флаг открытия после небольшой задержки
+            setTimeout(() => {
+                isOpeningRef.current = false;
+            }, 100);
+        }
+    }, [showCreateDialog]);
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -116,8 +128,13 @@ export function CategoriesManagement({ isDarkTheme }) {
         setShowEditDialog(true);
     };
 
-    const openCreateDialog = () => {
+    const openCreateDialog = (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         console.log('[CategoriesManagement] Открытие диалога создания категории');
+        isOpeningRef.current = true;
         setFormData({ name: '', description: '' });
         setShowCreateDialog(true);
         console.log('[CategoriesManagement] showCreateDialog установлен в true');
@@ -131,7 +148,7 @@ export function CategoriesManagement({ isDarkTheme }) {
                     <h2 className={`${textColor} text-xl font-bold`}>Управление категориями</h2>
                     <p className={textMuted}>Создавайте, редактируйте и удаляйте категории объявлений</p>
                 </div>
-                <Button onClick={openCreateDialog} className={buttonBg}>
+                <Button onClick={(e) => openCreateDialog(e)} className={buttonBg} type="button">
                     <Plus className="h-4 w-4 mr-2" />
                     Создать категорию
                 </Button>
@@ -152,7 +169,7 @@ export function CategoriesManagement({ isDarkTheme }) {
             ) : categories.length === 0 ? (
                 <div className="text-center py-12">
                     <p className={textMuted}>Категории не найдены</p>
-                    <Button onClick={openCreateDialog} className={`mt-4 ${buttonBg}`}>
+                    <Button onClick={(e) => openCreateDialog(e)} className={`mt-4 ${buttonBg}`} type="button">
                         <Plus className="h-4 w-4 mr-2" />
                         Создать первую категорию
                     </Button>
@@ -200,13 +217,25 @@ export function CategoriesManagement({ isDarkTheme }) {
 
             {/* Create Dialog */}
             <Dialog 
-                open={showCreateDialog} 
+                open={showCreateDialog}
                 onOpenChange={(open) => {
-                    console.log('[CategoriesManagement] Dialog onOpenChange вызван, open:', open);
-                    setShowCreateDialog(open);
+                    console.log('[CategoriesManagement] Dialog onOpenChange вызван, open:', open, 'showCreateDialog:', showCreateDialog, 'isOpeningRef:', isOpeningRef.current);
+                    // Предотвращаем закрытие, если диалог только что открылся
+                    if (!open && isOpeningRef.current) {
+                        console.log('[CategoriesManagement] Предотвращено закрытие диалога (только что открылся)');
+                        return;
+                    }
+                    if (!open) {
+                        console.log('[CategoriesManagement] Закрытие диалога');
+                        setShowCreateDialog(false);
+                        setFormData({ name: '', description: '' });
+                    }
                 }}
             >
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
+                <DialogContent 
+                    className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} 
+                    style={{ zIndex: 100 }}
+                >
                     <DialogHeader>
                         <DialogTitle className={textColor}>Создать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>

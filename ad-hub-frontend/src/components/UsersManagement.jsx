@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { adminAPI } from '../api/admin';
 import { userAPI } from '../api/user';
 import { Search, Shield, ShieldCheck, ShieldX, Trash2, Edit, X, Check, Loader2 } from 'lucide-react';
@@ -32,6 +32,18 @@ export function UsersManagement({ isDarkTheme }) {
     const [showRoleDialog, setShowRoleDialog] = useState(false);
     const [newRole, setNewRole] = useState('');
     const [actionLoading, setActionLoading] = useState(null);
+    const isOpeningRef = useRef(false);
+
+    // Отслеживание изменений состояния диалога
+    useEffect(() => {
+        console.log('[UsersManagement] showRoleDialog изменился:', showRoleDialog, 'selectedUser:', selectedUser);
+        if (showRoleDialog) {
+            // Сбрасываем флаг открытия после небольшой задержки
+            setTimeout(() => {
+                isOpeningRef.current = false;
+            }, 100);
+        }
+    }, [showRoleDialog, selectedUser]);
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -166,10 +178,15 @@ export function UsersManagement({ isDarkTheme }) {
         }
     };
 
-    const openRoleDialog = (user) => {
+    const openRoleDialog = (user, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         console.log('[UsersManagement] Открытие диалога изменения роли для пользователя:', user);
+        isOpeningRef.current = true;
         setSelectedUser(user);
-        setNewRole(user.roleName);
+        setNewRole(user.roleName || '');
         setShowRoleDialog(true);
         console.log('[UsersManagement] showRoleDialog установлен в true');
     };
@@ -288,10 +305,11 @@ export function UsersManagement({ isDarkTheme }) {
                                                 <div className="flex items-center gap-2">
                                                     {user.id !== currentUserId && (
                                                         <button
-                                                            onClick={() => openRoleDialog(user)}
+                                                            onClick={(e) => openRoleDialog(user, e)}
                                                             disabled={actionLoading === user.id}
                                                             className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-neutral-300' : 'hover:bg-stone-100 text-stone-600'}`}
                                                             title="Изменить роль"
+                                                            type="button"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </button>
@@ -462,18 +480,26 @@ export function UsersManagement({ isDarkTheme }) {
 
             {/* Role Dialog */}
             <Dialog 
-                open={showRoleDialog} 
+                open={showRoleDialog}
                 onOpenChange={(open) => {
-                    console.log('[UsersManagement] Dialog onOpenChange вызван, open:', open);
-                    setShowRoleDialog(open);
+                    console.log('[UsersManagement] Dialog onOpenChange вызван, open:', open, 'showRoleDialog:', showRoleDialog, 'isOpeningRef:', isOpeningRef.current);
+                    // Предотвращаем закрытие, если диалог только что открылся
+                    if (!open && isOpeningRef.current) {
+                        console.log('[UsersManagement] Предотвращено закрытие диалога (только что открылся)');
+                        return;
+                    }
                     if (!open) {
-                        // Сбрасываем состояние при закрытии
+                        console.log('[UsersManagement] Закрытие диалога');
+                        setShowRoleDialog(false);
                         setSelectedUser(null);
                         setNewRole('');
                     }
                 }}
             >
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
+                <DialogContent 
+                    className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} 
+                    style={{ zIndex: 100 }}
+                >
                     <DialogHeader>
                         <DialogTitle className={textColor}>Изменить роль пользователя</DialogTitle>
                         <DialogDescription className={textMuted}>
