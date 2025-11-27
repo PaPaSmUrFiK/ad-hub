@@ -1,119 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import {
-  Smartphone,
-  Shirt,
-  Home,
-  Car,
-  Sofa,
-  Briefcase,
-  Baby,
-  Dumbbell,
-  Book,
-  Wrench,
-  Palette,
-  Music,
-  ChevronRight
-} from 'lucide-react';
-
-const categories = [
-  {
-    name: 'Электроника',
-    icon: Smartphone,
-    count: '5,240',
-    subcategories: ['Телефоны', 'Ноутбуки', 'Планшеты', 'ТВ и видео', 'Аудиотехника', 'Фототехника'],
-    color: 'bg-cyan-100 text-cyan-700',
-    darkColor: 'dark:bg-cyan-900/30 dark:text-cyan-400',
-  },
-  {
-    name: 'Одежда и обувь',
-    icon: Shirt,
-    count: '3,850',
-    subcategories: ['Женская одежда', 'Мужская одежда', 'Обувь', 'Аксессуары', 'Детская одежда'],
-    color: 'bg-violet-100 text-violet-700',
-    darkColor: 'dark:bg-violet-900/30 dark:text-violet-400',
-  },
-  {
-    name: 'Недвижимость',
-    icon: Home,
-    count: '2,120',
-    subcategories: ['Квартиры', 'Дома', 'Коммерческая', 'Земельные участки', 'Аренда'],
-    color: 'bg-emerald-100 text-emerald-700',
-    darkColor: 'dark:bg-emerald-900/30 dark:text-emerald-400',
-  },
-  {
-    name: 'Авто и транспорт',
-    icon: Car,
-    count: '4,560',
-    subcategories: ['Легковые авто', 'Грузовики', 'Мототехника', 'Запчасти', 'Шины и диски'],
-    color: 'bg-rose-100 text-rose-700',
-    darkColor: 'dark:bg-rose-900/30 dark:text-rose-400',
-  },
-  {
-    name: 'Мебель и интерьер',
-    icon: Sofa,
-    count: '1,890',
-    subcategories: ['Диваны и кресла', 'Столы и стулья', 'Шкафы', 'Декор', 'Освещение'],
-    color: 'bg-amber-100 text-amber-700',
-    darkColor: 'dark:bg-amber-900/30 dark:text-amber-400',
-  },
-  {
-    name: 'Работа и бизнес',
-    icon: Briefcase,
-    count: '3,200',
-    subcategories: ['Вакансии', 'Резюме', 'Бизнес и оборудование', 'Услуги'],
-    color: 'bg-sky-100 text-sky-700',
-    darkColor: 'dark:bg-sky-900/30 dark:text-sky-400',
-  },
-  {
-    name: 'Детские товары',
-    icon: Baby,
-    count: '2,340',
-    subcategories: ['Детская мебель', 'Игрушки', 'Коляски', 'Автокресла', 'Одежда'],
-    color: 'bg-pink-100 text-pink-700',
-    darkColor: 'dark:bg-pink-900/30 dark:text-pink-400',
-  },
-  {
-    name: 'Спорт и отдых',
-    icon: Dumbbell,
-    count: '1,560',
-    subcategories: ['Велосипеды', 'Тренажеры', 'Туризм', 'Зимний спорт', 'Водный спорт'],
-    color: 'bg-orange-100 text-orange-700',
-    darkColor: 'dark:bg-orange-900/30 dark:text-orange-400',
-  },
-  {
-    name: 'Книги и журналы',
-    icon: Book,
-    count: '890',
-    subcategories: ['Художественная литература', 'Учебники', 'Журналы', 'Комиксы'],
-    color: 'bg-indigo-100 text-indigo-700',
-    darkColor: 'dark:bg-indigo-900/30 dark:text-indigo-400',
-  },
-  {
-    name: 'Инструменты',
-    icon: Wrench,
-    count: '1,230',
-    subcategories: ['Электроинструменты', 'Ручной инструмент', 'Садовый инвентарь'],
-    color: 'bg-stone-200 text-stone-700',
-    darkColor: 'dark:bg-stone-800/30 dark:text-stone-400',
-  },
-  {
-    name: 'Хобби и творчество',
-    icon: Palette,
-    count: '1,450',
-    subcategories: ['Рукоделие', 'Художественные товары', 'Коллекционирование'],
-    color: 'bg-teal-100 text-teal-700',
-    darkColor: 'dark:bg-teal-900/30 dark:text-teal-400',
-  },
-  {
-    name: 'Музыкальные инструменты',
-    icon: Music,
-    count: '670',
-    subcategories: ['Гитары', 'Клавишные', 'Духовые', 'Звуковое оборудование'],
-    color: 'bg-purple-100 text-purple-700',
-    darkColor: 'dark:bg-purple-900/30 dark:text-purple-400',
-  },
-];
+import { ChevronRight, Loader2 } from 'lucide-react';
+import { categoriesAPI } from '../api/categories';
+import { adsAPI } from '../api/ads';
+import { getCategoryConfig } from '../utils/categoryUtils';
 
 export function CategoriesPage({
   isDarkTheme,
@@ -130,6 +21,62 @@ export function CategoriesPage({
   const textSecondary = isDarkTheme ? 'text-neutral-300' : 'text-stone-700';
   const textMuted = isDarkTheme ? 'text-neutral-400' : 'text-stone-600';
   const hoverBg = isDarkTheme ? 'hover:bg-neutral-800' : 'hover:bg-stone-50';
+
+  const [categories, setCategories] = useState([]);
+  const [categoryCounts, setCategoryCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Загружаем категории и количество объявлений
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const categoriesData = await categoriesAPI.getAllCategories();
+        setCategories(categoriesData || []);
+
+        // Загружаем количество объявлений для каждой категории
+        const counts = {};
+        for (const category of categoriesData || []) {
+          try {
+            const adsData = await adsAPI.searchAds({
+              categoryId: category.id,
+              page: 1,
+              size: 1
+            });
+            counts[category.id] = adsData.totalElements || 0;
+          } catch (error) {
+            console.error(`Ошибка при загрузке количества объявлений для категории ${category.id}:`, error);
+            counts[category.id] = 0;
+          }
+        }
+        setCategoryCounts(counts);
+      } catch (error) {
+        console.error('Ошибка при загрузке категорий:', error);
+        setError('Не удалось загрузить категории');
+        setCategories([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  const handleCategoryClick = (categoryId) => {
+    if (onNavigate) {
+      // Переходим на страницу объявлений с фильтром по категории
+      onNavigate('all-listings', { categoryId });
+    }
+  };
+
+  const formatCount = (count) => {
+    if (count === 0) return '0';
+    if (count < 1000) return count.toString();
+    if (count < 1000000) return `${(count / 1000).toFixed(1)}K`;
+    return `${(count / 1000000).toFixed(1)}M`;
+  };
 
   return (
     <div className={`min-h-screen ${bgColor}`}>
@@ -151,41 +98,59 @@ export function CategoriesPage({
           <p className={textSecondary}>Выберите категорию для просмотра объявлений</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.map((category) => {
-            const Icon = category.icon;
-            return (
-              <div
-                key={category.name}
-                className={`${cardBg} rounded-xl border ${borderColor} p-6 ${hoverBg} transition-all cursor-pointer group`}
-              >
-                <div className="flex items-start gap-4 mb-4">
-                  <div className={`w-14 h-14 rounded-xl ${isDarkTheme ? category.darkColor : category.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Icon className="h-7 w-7" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className={textColor}>{category.name}</h3>
-                      <ChevronRight className={`h-5 w-5 ${textMuted} ${isDarkTheme ? 'group-hover:text-orange-500' : 'group-hover:text-teal-600'} transition-colors`} />
+        {error && (
+          <div className={`mb-4 p-3 rounded ${isDarkTheme ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-700'}`}>
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center py-12">
+            <Loader2 className={`h-8 w-8 ${textMuted} mx-auto animate-spin`} />
+            <p className={`${textMuted} mt-2`}>Загрузка категорий...</p>
+          </div>
+        ) : categories.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categories.map((category) => {
+              const config = getCategoryConfig(category.name);
+              const Icon = config.icon;
+              const count = categoryCounts[category.id] || 0;
+              
+              return (
+                <div
+                  key={category.id}
+                  onClick={() => handleCategoryClick(category.id)}
+                  className={`${cardBg} rounded-xl border ${borderColor} p-6 ${hoverBg} transition-all cursor-pointer group`}
+                >
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-14 h-14 rounded-xl ${isDarkTheme ? config.darkColor : config.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <Icon className="h-7 w-7" />
                     </div>
-                    <p className={textMuted}>{category.count} объявлений</p>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className={textColor}>{category.name}</h3>
+                        <ChevronRight className={`h-5 w-5 ${textMuted} ${isDarkTheme ? 'group-hover:text-orange-500' : 'group-hover:text-teal-600'} transition-colors`} />
+                      </div>
+                      <p className={textMuted}>{formatCount(count)} объявлений</p>
+                    </div>
                   </div>
+                  
+                  {category.description && (
+                    <div className={`mt-4 pt-4 border-t ${borderColor}`}>
+                      <p className={`${textSecondary} text-sm leading-relaxed`}>
+                        {category.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                
-                <div className="space-y-2">
-                  {category.subcategories.map((sub) => (
-                    <button
-                      key={sub}
-                      className={`block w-full text-left ${textSecondary} ${isDarkTheme ? 'hover:text-orange-400' : 'hover:text-teal-600'} transition-colors`}
-                    >
-                      • {sub}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className={textSecondary}>Нет доступных категорий</p>
+          </div>
+        )}
       </div>
 
       <Footer isDarkTheme={isDarkTheme} />
