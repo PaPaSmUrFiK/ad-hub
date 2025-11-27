@@ -167,9 +167,11 @@ export function UsersManagement({ isDarkTheme }) {
     };
 
     const openRoleDialog = (user) => {
+        console.log('[UsersManagement] Открытие диалога изменения роли для пользователя:', user);
         setSelectedUser(user);
         setNewRole(user.roleName);
         setShowRoleDialog(true);
+        console.log('[UsersManagement] showRoleDialog установлен в true');
     };
 
     const formatDate = (dateString) => {
@@ -459,15 +461,19 @@ export function UsersManagement({ isDarkTheme }) {
             )}
 
             {/* Role Dialog */}
-            <Dialog open={showRoleDialog} onOpenChange={(open) => {
-                setShowRoleDialog(open);
-                if (!open) {
-                    // Сбрасываем состояние при закрытии
-                    setSelectedUser(null);
-                    setNewRole('');
-                }
-            }}>
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
+            <Dialog 
+                open={showRoleDialog} 
+                onOpenChange={(open) => {
+                    console.log('[UsersManagement] Dialog onOpenChange вызван, open:', open);
+                    setShowRoleDialog(open);
+                    if (!open) {
+                        // Сбрасываем состояние при закрытии
+                        setSelectedUser(null);
+                        setNewRole('');
+                    }
+                }}
+            >
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Изменить роль пользователя</DialogTitle>
                         <DialogDescription className={textMuted}>

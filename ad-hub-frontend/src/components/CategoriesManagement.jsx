@@ -117,8 +117,10 @@ export function CategoriesManagement({ isDarkTheme }) {
     };
 
     const openCreateDialog = () => {
+        console.log('[CategoriesManagement] Открытие диалога создания категории');
         setFormData({ name: '', description: '' });
         setShowCreateDialog(true);
+        console.log('[CategoriesManagement] showCreateDialog установлен в true');
     };
 
     return (
@@ -197,8 +199,14 @@ export function CategoriesManagement({ isDarkTheme }) {
             )}
 
             {/* Create Dialog */}
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
+            <Dialog 
+                open={showCreateDialog} 
+                onOpenChange={(open) => {
+                    console.log('[CategoriesManagement] Dialog onOpenChange вызван, open:', open);
+                    setShowCreateDialog(open);
+                }}
+            >
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Создать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>
@@ -257,8 +265,14 @@ export function CategoriesManagement({ isDarkTheme }) {
             </Dialog>
 
             {/* Edit Dialog */}
-            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
+            <Dialog 
+                open={showEditDialog} 
+                onOpenChange={(open) => {
+                    console.log('[CategoriesManagement] Edit Dialog onOpenChange вызван, open:', open);
+                    setShowEditDialog(open);
+                }}
+            >
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Редактировать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>
