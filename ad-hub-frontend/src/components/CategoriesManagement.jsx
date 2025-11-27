@@ -198,7 +198,7 @@ export function CategoriesManagement({ isDarkTheme }) {
 
             {/* Create Dialog */}
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent className={isDarkTheme ? 'bg-neutral-900 border-neutral-800' : 'bg-white'}>
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Создать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>
@@ -258,7 +258,7 @@ export function CategoriesManagement({ isDarkTheme }) {
 
             {/* Edit Dialog */}
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className={isDarkTheme ? 'bg-neutral-900 border-neutral-800' : 'bg-white'}>
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Редактировать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>

@@ -325,18 +325,20 @@ export function UsersManagement({ isDarkTheme }) {
                                                             )}
                                                         </>
                                                     )}
-                                                    <button
-                                                        onClick={() => handleDelete(user.id)}
-                                                        disabled={actionLoading === user.id}
-                                                        className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-red-400' : 'hover:bg-stone-100 text-red-600'}`}
-                                                        title="Удалить"
-                                                    >
-                                                        {actionLoading === user.id ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="h-4 w-4" />
-                                                        )}
-                                                    </button>
+                                                    {user.id !== currentUserId && (
+                                                        <button
+                                                            onClick={() => handleDelete(user.id)}
+                                                            disabled={actionLoading === user.id}
+                                                            className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-red-400' : 'hover:bg-stone-100 text-red-600'}`}
+                                                            title="Удалить"
+                                                        >
+                                                            {actionLoading === user.id ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -465,7 +467,7 @@ export function UsersManagement({ isDarkTheme }) {
                     setNewRole('');
                 }
             }}>
-                <DialogContent className={isDarkTheme ? 'bg-neutral-900 border-neutral-800' : 'bg-white'}>
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'} z-[100]`}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Изменить роль пользователя</DialogTitle>
                         <DialogDescription className={textMuted}>
