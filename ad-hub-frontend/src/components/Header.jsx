@@ -1,4 +1,4 @@
-import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, Users, BarChart3 } from 'lucide-react';
+import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, Users, BarChart3, FolderTree } from 'lucide-react';
 import { Button } from './ui/button.jsx';
 import {
     DropdownMenu,
@@ -69,6 +69,22 @@ export function Header({
                                         >
                                             <Users className="h-4 w-4" />
                                             Пользователи
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                console.log('[Header] Клик на Категории');
+                                                onNavigate?.('admin');
+                                                // Переключаем вкладку через глобальную функцию
+                                                setTimeout(() => {
+                                                    if (window.setAdminTab) {
+                                                        window.setAdminTab('categories');
+                                                    }
+                                                }, 0);
+                                            }}
+                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                        >
+                                            <FolderTree className="h-4 w-4" />
+                                            Категории
                                         </button>
                                         <button
                                             onClick={() => {

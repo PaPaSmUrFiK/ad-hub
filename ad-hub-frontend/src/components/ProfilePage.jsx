@@ -19,7 +19,8 @@ export function ProfilePage({
                                 onLogout,
                                 onNavigate,
                                 onViewListing,
-                                onCreateListing
+                                onCreateListing,
+                                isAdmin = false
                             }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -209,6 +210,7 @@ export function ProfilePage({
                 currentPage="profile"
                 onNavigate={onNavigate}
                 hideCreateButton={true}
+                isAdmin={isAdmin}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

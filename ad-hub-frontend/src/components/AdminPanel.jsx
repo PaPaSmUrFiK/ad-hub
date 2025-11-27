@@ -51,11 +51,17 @@ export function AdminPanel({
             setLoading(true);
             setError('');
             const me = await userAPI.getMe();
-            const role = me.role?.name || me.roleName || '';
+            console.log('[AdminPanel] Данные пользователя:', me);
+            // UserMeResponse возвращает role как строку
+            const role = me.role || '';
+            console.log('[AdminPanel] Извлеченная роль:', role);
             setUserRole(role);
             
             if (role !== 'ADMIN') {
+                console.warn('[AdminPanel] Пользователь не является администратором. Роль:', role);
                 setError('У вас нет доступа к панели администратора');
+            } else {
+                console.log('[AdminPanel] Доступ подтвержден для администратора');
             }
         } catch (err) {
             console.error('Ошибка при проверке доступа:', err);
