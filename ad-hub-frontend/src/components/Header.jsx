@@ -1,4 +1,4 @@
-import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, Users, BarChart3, FolderTree } from 'lucide-react';
+import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield } from 'lucide-react';
 import { Button } from './ui/button.jsx';
 import {
     DropdownMenu,
@@ -52,57 +52,17 @@ export function Header({
                                 console.log('[Header] Показывать админ навигацию:', showAdminNav);
                                 
                                 return showAdminNav ? (
-                                    // Навигация для администратора
-                                    <>
-                                        <button
-                                            onClick={() => {
-                                                console.log('[Header] Клик на Пользователи');
-                                                onNavigate?.('admin');
-                                                // Переключаем вкладку через глобальную функцию
-                                                setTimeout(() => {
-                                                    if (window.setAdminTab) {
-                                                        window.setAdminTab('users');
-                                                    }
-                                                }, 0);
-                                            }}
-                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                        >
-                                            <Users className="h-4 w-4" />
-                                            Пользователи
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                console.log('[Header] Клик на Категории');
-                                                onNavigate?.('admin');
-                                                // Переключаем вкладку через глобальную функцию
-                                                setTimeout(() => {
-                                                    if (window.setAdminTab) {
-                                                        window.setAdminTab('categories');
-                                                    }
-                                                }, 0);
-                                            }}
-                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                        >
-                                            <FolderTree className="h-4 w-4" />
-                                            Категории
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                console.log('[Header] Клик на Статистика');
-                                                onNavigate?.('admin');
-                                                // Переключаем вкладку через глобальную функцию
-                                                setTimeout(() => {
-                                                    if (window.setAdminTab) {
-                                                        window.setAdminTab('statistics');
-                                                    }
-                                                }, 0);
-                                            }}
-                                            className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                        >
-                                            <BarChart3 className="h-4 w-4" />
-                                            Статистика
-                                        </button>
-                                    </>
+                                    // Навигация для администратора - одна вкладка "Панель администратора"
+                                    <button
+                                        onClick={() => {
+                                            console.log('[Header] Клик на Панель администратора');
+                                            onNavigate?.('admin');
+                                        }}
+                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                    >
+                                        <Shield className="h-4 w-4" />
+                                        Панель администратора
+                                    </button>
                                 ) : (
                                     // Навигация для обычных пользователей
                                     <>

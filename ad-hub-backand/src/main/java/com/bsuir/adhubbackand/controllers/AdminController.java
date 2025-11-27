@@ -4,12 +4,14 @@ import com.bsuir.adhubbackand.model.dto.request.admin.UpdateUserRoleRequest;
 import com.bsuir.adhubbackand.model.dto.response.admin.ModerationActionResponse;
 import com.bsuir.adhubbackand.model.dto.response.admin.PendingAdResponse;
 import com.bsuir.adhubbackand.model.dto.response.admin.UserListResponse;
+import com.bsuir.adhubbackand.security.UserDetailsImpl;
 import com.bsuir.adhubbackand.services.AdminAdService;
 import com.bsuir.adhubbackand.services.AdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -57,8 +59,10 @@ public class AdminController {
 
     @PutMapping("/users/{id}/block")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> blockUser(@PathVariable Long id) {
-        adminUserService.blockUser(id);
+    public ResponseEntity<Void> blockUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        adminUserService.blockUser(id, currentUser.getId());
         return ResponseEntity.noContent().build();
     }
 
@@ -73,8 +77,9 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> updateUserRole(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateUserRoleRequest request) {
-        adminUserService.updateUserRole(id, request);
+            @Valid @RequestBody UpdateUserRoleRequest request,
+            @AuthenticationPrincipal UserDetailsImpl currentUser) {
+        adminUserService.updateUserRole(id, request, currentUser.getId());
         return ResponseEntity.noContent().build();
     }
 

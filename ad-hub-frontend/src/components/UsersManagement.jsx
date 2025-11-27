@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../api/admin';
+import { userAPI } from '../api/user';
 import { Search, Shield, ShieldCheck, ShieldX, Trash2, Edit, X, Check, Loader2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -18,6 +19,7 @@ export function UsersManagement({ isDarkTheme }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentUserId, setCurrentUserId] = useState(null);
     const [pagination, setPagination] = useState({
         page: 1,
         size: 20,
@@ -38,6 +40,19 @@ export function UsersManagement({ isDarkTheme }) {
     const textMuted = isDarkTheme ? 'text-neutral-400' : 'text-stone-600';
     const inputBg = isDarkTheme ? 'bg-neutral-800 border-neutral-700 text-neutral-100' : 'bg-white border-stone-300';
     const buttonBg = isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700';
+
+    useEffect(() => {
+        // Загружаем ID текущего пользователя
+        const loadCurrentUser = async () => {
+            try {
+                const me = await userAPI.getMe();
+                setCurrentUserId(me.id);
+            } catch (err) {
+                console.error('Ошибка при загрузке текущего пользователя:', err);
+            }
+        };
+        loadCurrentUser();
+    }, []);
 
     useEffect(() => {
         // Проверяем валидность номера страницы
@@ -81,6 +96,11 @@ export function UsersManagement({ isDarkTheme }) {
     };
 
     const handleBlock = async (userId) => {
+        if (userId === currentUserId) {
+            alert('Вы не можете заблокировать себя');
+            return;
+        }
+        
         if (!window.confirm('Вы уверены, что хотите заблокировать этого пользователя?')) {
             return;
         }
@@ -110,12 +130,19 @@ export function UsersManagement({ isDarkTheme }) {
     const handleChangeRole = async () => {
         if (!selectedUser || !newRole) return;
         
+        // Проверяем, что не пытаемся изменить роль на ту же самую
+        if (selectedUser.roleName === newRole) {
+            alert('Пользователь уже имеет эту роль');
+            return;
+        }
+        
         try {
             setActionLoading(selectedUser.id);
             await adminAPI.updateUserRole(selectedUser.id, newRole);
             setShowRoleDialog(false);
             setSelectedUser(null);
             setNewRole('');
+            // Обновляем список пользователей
             await loadUsers();
         } catch (err) {
             alert(err.message || 'Ошибка при изменении роли');
@@ -257,40 +284,46 @@ export function UsersManagement({ isDarkTheme }) {
                                             <td className={`px-4 py-3 text-sm ${textMuted}`}>{formatDate(user.createdAt)}</td>
                                             <td className={`px-4 py-3 text-sm`}>
                                                 <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => openRoleDialog(user)}
-                                                        disabled={actionLoading === user.id}
-                                                        className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-neutral-300' : 'hover:bg-stone-100 text-stone-600'}`}
-                                                        title="Изменить роль"
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </button>
-                                                    {user.status === 'BLOCKED' ? (
+                                                    {user.id !== currentUserId && (
                                                         <button
-                                                            onClick={() => handleUnblock(user.id)}
+                                                            onClick={() => openRoleDialog(user)}
                                                             disabled={actionLoading === user.id}
-                                                            className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-green-400' : 'hover:bg-stone-100 text-green-600'}`}
-                                                            title="Разблокировать"
+                                                            className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-neutral-300' : 'hover:bg-stone-100 text-stone-600'}`}
+                                                            title="Изменить роль"
                                                         >
-                                                            {actionLoading === user.id ? (
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                            ) : (
-                                                                <ShieldCheck className="h-4 w-4" />
-                                                            )}
+                                                            <Edit className="h-4 w-4" />
                                                         </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleBlock(user.id)}
-                                                            disabled={actionLoading === user.id}
-                                                            className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-red-400' : 'hover:bg-stone-100 text-red-600'}`}
-                                                            title="Заблокировать"
-                                                        >
-                                                            {actionLoading === user.id ? (
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                    )}
+                                                    {user.id !== currentUserId && (
+                                                        <>
+                                                            {user.status === 'BLOCKED' ? (
+                                                                <button
+                                                                    onClick={() => handleUnblock(user.id)}
+                                                                    disabled={actionLoading === user.id}
+                                                                    className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-green-400' : 'hover:bg-stone-100 text-green-600'}`}
+                                                                    title="Разблокировать"
+                                                                >
+                                                                    {actionLoading === user.id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <ShieldCheck className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
                                                             ) : (
-                                                                <ShieldX className="h-4 w-4" />
+                                                                <button
+                                                                    onClick={() => handleBlock(user.id)}
+                                                                    disabled={actionLoading === user.id}
+                                                                    className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-red-400' : 'hover:bg-stone-100 text-red-600'}`}
+                                                                    title="Заблокировать"
+                                                                >
+                                                                    {actionLoading === user.id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <ShieldX className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
                                                             )}
-                                                        </button>
+                                                        </>
                                                     )}
                                                     <button
                                                         onClick={() => handleDelete(user.id)}
@@ -424,7 +457,14 @@ export function UsersManagement({ isDarkTheme }) {
             )}
 
             {/* Role Dialog */}
-            <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+            <Dialog open={showRoleDialog} onOpenChange={(open) => {
+                setShowRoleDialog(open);
+                if (!open) {
+                    // Сбрасываем состояние при закрытии
+                    setSelectedUser(null);
+                    setNewRole('');
+                }
+            }}>
                 <DialogContent className={isDarkTheme ? 'bg-neutral-900 border-neutral-800' : 'bg-white'}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Изменить роль пользователя</DialogTitle>

@@ -51,18 +51,21 @@ export function CategoriesManagement({ isDarkTheme }) {
 
     const handleCreate = async () => {
         if (!formData.name.trim()) {
-            alert('Название категории обязательно');
+            setError('Название категории обязательно');
             return;
         }
 
         try {
             setActionLoading(true);
+            setError('');
             await adminAPI.createCategory(formData.name.trim(), formData.description?.trim() || null);
             setShowCreateDialog(false);
             setFormData({ name: '', description: '' });
             await loadCategories();
         } catch (err) {
-            alert(err.message || 'Ошибка при создании категории');
+            const errorMessage = err.message || 'Ошибка при создании категории';
+            setError(errorMessage);
+            alert(errorMessage);
         } finally {
             setActionLoading(false);
         }

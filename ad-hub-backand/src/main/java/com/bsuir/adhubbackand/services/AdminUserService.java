@@ -84,7 +84,11 @@ public class AdminUserService {
     }
 
     @Transactional
-    public void blockUser(Long userId) {
+    public void blockUser(Long userId, Long currentAdminId) {
+        if (userId.equals(currentAdminId)) {
+            throw new RuntimeException("Вы не можете заблокировать себя");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -95,7 +99,7 @@ public class AdminUserService {
         user.setStatus(UserStatus.BLOCKED);
         userRepository.save(user);
 
-        log.info("Пользователь заблокирован: userId={}, email={}", userId, user.getEmail());
+        log.info("Пользователь заблокирован: userId={}, email={}, заблокировал adminId={}", userId, user.getEmail(), currentAdminId);
     }
 
     @Transactional
@@ -114,7 +118,11 @@ public class AdminUserService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public void updateUserRole(Long userId, UpdateUserRoleRequest request) {
+    public void updateUserRole(Long userId, UpdateUserRoleRequest request, Long currentAdminId) {
+        if (userId.equals(currentAdminId)) {
+            throw new RuntimeException("Вы не можете изменить свою роль");
+        }
+
         User user = userRepository.findByIdWithRole(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -122,11 +130,17 @@ public class AdminUserService {
                 .orElseThrow(() -> new RuntimeException("Роль " + request.roleName() + " не найдена"));
 
         String oldRole = user.getRole().getName();
+        
+        // Проверяем, что не пытаемся изменить роль на ту же самую
+        if (oldRole.equals(request.roleName())) {
+            throw new RuntimeException("Пользователь уже имеет роль " + request.roleName());
+        }
+
         user.setRole(newRole);
         userRepository.save(user);
 
-        log.info("Роль пользователя изменена: userId={}, email={}, старый роль={}, новая роль={}", 
-                userId, user.getEmail(), oldRole, request.roleName());
+        log.info("Роль пользователя изменена: userId={}, email={}, старый роль={}, новая роль={}, изменил adminId={}", 
+                userId, user.getEmail(), oldRole, request.roleName(), currentAdminId);
     }
 
     @org.springframework.transaction.annotation.Transactional
