@@ -37,11 +37,6 @@ public class FavoriteService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
-        // Проверяем, что пользователь не пытается добавить свое объявление в избранное
-        if (ad.getUser().getId().equals(userId)) {
-            throw new DuplicateFavoriteException("Нельзя добавить свое объявление в избранное");
-        }
-
         // Проверяем, что объявление еще не в избранном
         if (favoriteAdRepository.existsByUserIdAndAdId(userId, adId)) {
             throw new DuplicateFavoriteException("Объявление уже в избранном");

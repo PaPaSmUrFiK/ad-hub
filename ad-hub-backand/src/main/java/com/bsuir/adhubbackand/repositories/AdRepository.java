@@ -65,9 +65,17 @@ public interface AdRepository extends JpaRepository<Ad, Long> {
     @Query("UPDATE Ad a SET a.status = :status WHERE a.id = :adId")
     void updateAdStatus(@Param("adId") Long adId, @Param("status") AdStatus status);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Ad a SET a.viewCount = a.viewCount + 1 WHERE a.id = :adId")
     void incrementViewCount(@Param("adId") Long adId);
+
+    // Загрузка Ad с mediaFiles, User и Category для избежания LazyInitializationException
+    @Query("SELECT DISTINCT a FROM Ad a " +
+           "LEFT JOIN FETCH a.mediaFiles " +
+           "LEFT JOIN FETCH a.user " +
+           "LEFT JOIN FETCH a.category " +
+           "WHERE a.id = :adId")
+    Optional<Ad> findByIdWithMediaFiles(@Param("adId") Long adId);
 
     @Query("SELECT a FROM Ad a WHERE a.createdAt < :date AND a.status = 'ACTIVE'")
     List<Ad> findOldActiveAds(@Param("date") LocalDateTime date);

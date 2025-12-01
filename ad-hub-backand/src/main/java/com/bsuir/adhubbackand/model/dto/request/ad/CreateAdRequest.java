@@ -1,5 +1,6 @@
 package com.bsuir.adhubbackand.model.dto.request.ad;
 
+import com.bsuir.adhubbackand.model.enums.AdStatus;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 
@@ -8,7 +9,7 @@ public record CreateAdRequest(
         @Size(min = 5, max = 200, message = "Заголовок должен быть от 5 до 200 символов")
         String title,
 
-        @NotBlank(message = "Описание обязательно")
+        // Описание опционально для черновика, но если указано - должно быть от 10 до 5000 символов
         @Size(min = 10, max = 5000, message = "Описание должно быть от 10 до 5000 символов")
         String description,
 
@@ -24,6 +25,8 @@ public record CreateAdRequest(
 
         @NotNull(message = "ID категории обязателен")
         @Positive(message = "ID категории должен быть положительным")
-        Long categoryId
-) {}
+        Long categoryId,
 
+        // Статус объявления (опционально, по умолчанию ON_MODERATION)
+        AdStatus status
+) {}

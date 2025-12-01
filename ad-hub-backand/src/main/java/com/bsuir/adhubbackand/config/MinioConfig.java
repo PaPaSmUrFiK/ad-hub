@@ -17,8 +17,11 @@ public class MinioConfig {
     @Value("${minio.secret-key}")
     private String secretKey;
 
-    @Value("${minio.bucket-name}")
-    private String bucketName;
+    @Value("${minio.bucket.avatars}")
+    private String avatarsBucketName;
+
+    @Value("${minio.bucket.ads-media}")
+    private String adsMediaBucketName;
 
     @Bean
     public MinioClient minioClient() {
@@ -28,8 +31,13 @@ public class MinioConfig {
                 .build();
     }
 
-    @Bean
-    public String bucketName() {
-        return bucketName;
+    @Bean(name = "avatarsBucketName")
+    public String avatarsBucketName() {
+        return avatarsBucketName;
+    }
+
+    @Bean(name = "adsMediaBucketName")
+    public String adsMediaBucketName() {
+        return adsMediaBucketName;
     }
 }

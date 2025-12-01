@@ -2,9 +2,11 @@ import { ListingCard } from './ListingCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { useState, useEffect } from 'react';
 import { adsAPI } from '../api/ads';
+import { favoritesAPI } from '../api/favorites';
+import { tokenStorage } from '../api/auth';
 import { getPrimaryImage, formatPrice } from '../utils/categoryUtils';
 
-export function FeaturedListings({ isDarkTheme = false, onViewListing, onNavigate }) {
+export function FeaturedListings({ isDarkTheme = false, onViewListing, onNavigate, isAuthenticated, onLoginClick }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const textColor = isDarkTheme ? 'text-neutral-100' : 'text-stone-900';
     const textSecondary = isDarkTheme ? 'text-neutral-300' : 'text-stone-700';
@@ -14,6 +16,7 @@ export function FeaturedListings({ isDarkTheme = false, onViewListing, onNavigat
     const [newAds, setNewAds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('featured');
+    const [favoriteAdIds, setFavoriteAdIds] = useState(new Set());
 
     // Загружаем объявления при монтировании компонента
     useEffect(() => {
@@ -49,6 +52,70 @@ export function FeaturedListings({ isDarkTheme = false, onViewListing, onNavigat
         loadAds();
     }, []);
 
+    // Загружаем избранные объявления для авторизованного пользователя
+    useEffect(() => {
+        const loadFavorites = async () => {
+            if (!isAuthenticated || !tokenStorage.isAuthenticated()) {
+                setFavoriteAdIds(new Set());
+                return;
+            }
+            
+            try {
+                const favorites = await favoritesAPI.getFavorites();
+                const favoriteIds = new Set((favorites.favorites || []).map(f => f.adId));
+                setFavoriteAdIds(favoriteIds);
+            } catch (error) {
+                console.error('Ошибка при загрузке избранного:', error);
+                setFavoriteAdIds(new Set());
+            }
+        };
+        
+        loadFavorites();
+    }, [isAuthenticated]);
+
+    // Обработчик изменения избранного
+    const handleFavoriteToggle = async (adId) => {
+        if (!isAuthenticated || !tokenStorage.isAuthenticated()) {
+            onLoginClick?.();
+            return;
+        }
+
+        // Оптимистичное обновление - сразу меняем состояние для мгновенной перерисовки
+        const isCurrentlyFavorite = favoriteAdIds.has(adId);
+        const newFavoriteState = !isCurrentlyFavorite;
+        
+        // Сразу обновляем состояние
+        setFavoriteAdIds(prev => {
+            const newSet = new Set(prev);
+            if (newFavoriteState) {
+                newSet.add(adId);
+            } else {
+                newSet.delete(adId);
+            }
+            return newSet;
+        });
+
+        try {
+            if (isCurrentlyFavorite) {
+                await favoritesAPI.removeFromFavorites(adId);
+            } else {
+                await favoritesAPI.addToFavorites(adId);
+            }
+        } catch (error) {
+            console.error('Ошибка при изменении избранного:', error);
+            // Откатываем изменение при ошибке
+            setFavoriteAdIds(prev => {
+                const newSet = new Set(prev);
+                if (isCurrentlyFavorite) {
+                    newSet.add(adId);
+                } else {
+                    newSet.delete(adId);
+                }
+                return newSet;
+            });
+        }
+    };
+
     // Преобразуем данные объявления для ListingCard
     const mapAdToCard = (ad) => {
         const primaryImage = getPrimaryImage(ad.mediaFiles);
@@ -62,7 +129,9 @@ export function FeaturedListings({ isDarkTheme = false, onViewListing, onNavigat
             image: primaryImage || 'https://via.placeholder.com/400x300?text=No+Image',
             isNew: isNew,
             isFeatured: ad.viewCount > 100, // VIP если много просмотров
-            isFavorite: false, // Будет загружаться отдельно при необходимости
+            isFavorite: favoriteAdIds.has(ad.id),
+            status: ad.status, // Передаем статус объявления
+            onFavoriteToggle: () => handleFavoriteToggle(ad.id),
         };
     };
 

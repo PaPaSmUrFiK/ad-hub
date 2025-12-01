@@ -1,47 +1,9 @@
-import { tokenStorage } from './auth';
+import { fetchWithAuth } from './interceptor';
 
-const API_BASE_URL = 'http://localhost:8080';
-
-// Базовый fetch с обработкой ошибок
+// Базовый fetch с автоматическим обновлением токенов
 async function fetchAPI(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const config = {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    };
-
-    // Добавляем токен авторизации, если он есть
-    const accessToken = tokenStorage.getAccessToken();
-    if (accessToken) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
     try {
-        const response = await fetch(url, config);
-        
-        if (!response.ok) {
-            let errorData;
-            try {
-                errorData = await response.json();
-            } catch {
-                errorData = { message: `Ошибка сервера: ${response.status} ${response.statusText}` };
-            }
-            
-            if (response.status === 400 && errorData.message) {
-                throw new Error(errorData.message);
-            }
-            
-            if (response.status === 401) {
-                throw new Error(errorData.message || 'Необходима авторизация');
-            }
-            
-            throw new Error(errorData.message || `Ошибка: ${response.status}`);
-        }
-
-        return await response.json();
+        return await fetchWithAuth(endpoint, options);
     } catch (error) {
         if (error instanceof TypeError && error.message.includes('fetch')) {
             throw new Error('Не удалось подключиться к серверу. Проверьте, что backend запущен.');
@@ -88,6 +50,19 @@ export const notificationsAPI = {
     deleteNotification: async (notificationId) => {
         return await fetchAPI(`/api/notifications/${notificationId}`, {
             method: 'DELETE',
+        });
+    },
+
+    // Получить все типы уведомлений
+    getNotificationTypes: async () => {
+        return await fetchAPI('/api/notifications/types');
+    },
+
+    // Создать уведомление (только для модераторов/администраторов)
+    createNotification: async (notificationData) => {
+        return await fetchAPI('/api/notifications', {
+            method: 'POST',
+            body: JSON.stringify(notificationData),
         });
     },
 };

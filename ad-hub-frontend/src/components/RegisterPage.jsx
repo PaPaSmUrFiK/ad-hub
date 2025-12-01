@@ -3,7 +3,7 @@ import { Mail, Lock, User, ArrowLeft, AlertCircle, Phone } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Checkbox } from './ui/checkbox';
+// import { Checkbox } from './ui/checkbox'; // Закомментировано: не используется
 import { authAPI } from '../api/auth';
 import { 
     validateEmail, 
@@ -24,7 +24,7 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
         lastName: '',
         phone: '',
     });
-    const [acceptedTerms, setAcceptedTerms] = useState(false);
+    // const [acceptedTerms, setAcceptedTerms] = useState(false); // Закомментировано: "Я согласен с условиями использования"
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -134,10 +134,11 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
             return;
         }
 
-        if (!acceptedTerms) {
-            setError('Необходимо принять условия использования');
-            return;
-        }
+        // Закомментировано: проверка принятия условий использования
+        // if (!acceptedTerms) {
+        //     setError('Необходимо принять условия использования');
+        //     return;
+        // }
 
         if (!formData.username || formData.username.length < 3) {
             setError('Имя пользователя должно содержать минимум 3 символа');
@@ -206,9 +207,11 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
             console.log('Токены успешно сохранены');
             
             // Вызываем callback для обновления состояния приложения
+            // Используем await, чтобы дождаться завершения обновления состояния
             if (onRegister) {
                 console.log('Вызываем onRegister callback');
-                onRegister();
+                await onRegister();
+                console.log('onRegister callback завершен');
             } else {
                 console.warn('onRegister callback не передан');
             }
@@ -383,7 +386,8 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-start space-x-2">
+                            {/* Закомментировано: "Я согласен с условиями использования и политикой конфиденциальности" */}
+                            {/* <div className="flex items-start space-x-2">
                                 <Checkbox 
                                     id="terms" 
                                     checked={acceptedTerms}
@@ -399,7 +403,7 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                                         политикой конфиденциальности
                                     </a>
                                 </label>
-                            </div>
+                            </div> */}
 
                             <Button 
                                 type="submit" 
@@ -409,7 +413,8 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                                 {loading ? 'Регистрация...' : 'Зарегистрироваться'}
                             </Button>
 
-                            <div className="relative my-6">
+                            {/* Закомментировано: регистрация через Google и GitHub */}
+                            {/* <div className="relative my-6">
                                 <div className="absolute inset-0 flex items-center">
                                     <div className="w-full border-t border-stone-300"></div>
                                 </div>
@@ -446,7 +451,7 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                                     </svg>
                                     GitHub
                                 </Button>
-                            </div>
+                            </div> */}
 
                             {/* Login Link */}
                             <div className="text-center pt-4 border-t border-stone-200 mt-6">

@@ -40,4 +40,23 @@ public interface SearchHistoryRepository extends JpaRepository<SearchHistory, Lo
 
     @Query("SELECT DISTINCT sh.queryText FROM SearchHistory sh WHERE sh.user.id = :userId AND LOWER(sh.queryText) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY sh.searchDate DESC")
     List<String> findSimilarQueriesByUser(@Param("userId") Long userId, @Param("query") String query, Pageable pageable);
+
+    // Методы для статистики
+    @Query("SELECT COUNT(sh) FROM SearchHistory sh")
+    long countAll();
+
+    @Query("SELECT COUNT(sh) FROM SearchHistory sh WHERE sh.searchDate >= :startDate")
+    long countBySearchDateAfter(@Param("startDate") LocalDateTime startDate);
+
+    @Query("SELECT COUNT(sh) FROM SearchHistory sh WHERE sh.searchDate >= :startDate AND sh.searchDate < :endDate")
+    long countBySearchDateBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    // Проверка на дубликаты: ищет недавние записи с таким же запросом и пользователем
+    @Query("SELECT COUNT(sh) FROM SearchHistory sh WHERE " +
+           "sh.queryText = :queryText " +
+           "AND sh.searchDate >= :sinceTime " +
+           "AND ((:userId IS NULL AND sh.user IS NULL) OR (sh.user.id = :userId))")
+    long countRecentDuplicates(@Param("queryText") String queryText, 
+                                 @Param("sinceTime") LocalDateTime sinceTime,
+                                 @Param("userId") Long userId);
 }

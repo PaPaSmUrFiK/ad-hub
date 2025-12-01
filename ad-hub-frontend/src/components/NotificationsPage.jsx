@@ -72,7 +72,9 @@ export function NotificationsPage({
                                       isAuthenticated,
                                       onLoginClick,
                                       onLogout,
-                                      onNavigate
+                                      onNavigate,
+                                      isAdmin = false,
+                                      isModerator = false
                                   }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -166,6 +168,8 @@ export function NotificationsPage({
                 onToggleTheme={onToggleTheme}
                 currentPage="notifications"
                 onNavigate={onNavigate}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
             />
 
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

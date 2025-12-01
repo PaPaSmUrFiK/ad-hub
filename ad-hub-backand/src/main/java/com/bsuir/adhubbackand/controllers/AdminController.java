@@ -3,9 +3,11 @@ package com.bsuir.adhubbackand.controllers;
 import com.bsuir.adhubbackand.model.dto.request.admin.UpdateUserRoleRequest;
 import com.bsuir.adhubbackand.model.dto.response.admin.ModerationActionResponse;
 import com.bsuir.adhubbackand.model.dto.response.admin.PendingAdResponse;
+import com.bsuir.adhubbackand.model.dto.response.admin.SearchStatisticsResponse;
 import com.bsuir.adhubbackand.model.dto.response.admin.UserListResponse;
 import com.bsuir.adhubbackand.security.UserDetailsImpl;
 import com.bsuir.adhubbackand.services.AdminAdService;
+import com.bsuir.adhubbackand.services.AdminStatisticsService;
 import com.bsuir.adhubbackand.services.AdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class AdminController {
 
     private final AdminAdService adminAdService;
     private final AdminUserService adminUserService;
+    private final AdminStatisticsService adminStatisticsService;
 
     // Модерация объявлений
     @GetMapping("/ads/pending")
@@ -43,6 +46,12 @@ public class AdminController {
     @PostMapping("/ads/{id}/reject")
     public ResponseEntity<ModerationActionResponse> rejectAd(@PathVariable Long id) {
         ModerationActionResponse response = adminAdService.rejectAd(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/ads/{id}/revision")
+    public ResponseEntity<ModerationActionResponse> sendForRevision(@PathVariable Long id) {
+        ModerationActionResponse response = adminAdService.sendForRevision(id);
         return ResponseEntity.ok(response);
     }
 
@@ -93,25 +102,8 @@ public class AdminController {
     @GetMapping("/statistics/search")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SearchStatisticsResponse> getSearchStatistics() {
-        // TODO: Реализовать сбор статистики поиска
-        SearchStatisticsResponse stats = new SearchStatisticsResponse(
-                0L, // totalSearches
-                0L, // searchesToday
-                0L, // searchesThisWeek
-                0L, // searchesThisMonth
-                List.of() // topQueries
-        );
+        SearchStatisticsResponse stats = adminStatisticsService.getSearchStatistics();
         return ResponseEntity.ok(stats);
-    }
-
-    public record SearchStatisticsResponse(
-            Long totalSearches,
-            Long searchesToday,
-            Long searchesThisWeek,
-            Long searchesThisMonth,
-            List<TopQuery> topQueries
-    ) {
-        public record TopQuery(String query, Long count) {}
     }
 }
 

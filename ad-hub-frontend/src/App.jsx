@@ -14,69 +14,144 @@ import { ProfilePage } from './components/ProfilePage';
 import { AllListingsPage } from './components/AllListingsPage';
 import { CategoriesPage } from './components/CategoriesPage';
 import { AdminPanel } from './components/AdminPanel';
+import { ModerationPage } from './components/ModerationPage';
+import { ModerationListingDetailPage } from './components/ModerationListingDetailPage';
 import { tokenStorage, authAPI } from './api/auth';
 import { userAPI } from './api/user';
 
 export default function App() {
-    const [currentPage, setCurrentPage] = useState('home');
+    // Восстанавливаем состояние из localStorage при загрузке
+    const [currentPage, setCurrentPage] = useState(() => {
+        const saved = localStorage.getItem('currentPage');
+        return saved || 'home';
+    });
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isDarkTheme, setIsDarkTheme] = useState(false);
-    const [selectedListingId, setSelectedListingId] = useState(null);
-    const [searchParams, setSearchParams] = useState({
-        query: null,
-        categoryId: null,
-        minPrice: null,
-        maxPrice: null,
-        location: null,
-        sortBy: null,
+    const [isDarkTheme, setIsDarkTheme] = useState(() => {
+        const saved = localStorage.getItem('isDarkTheme');
+        return saved === 'true';
+    });
+    const [selectedListingId, setSelectedListingId] = useState(() => {
+        const saved = localStorage.getItem('selectedListingId');
+        return saved ? parseInt(saved) : null;
+    });
+    const [editAdData, setEditAdData] = useState(null); // Данные черновика для редактирования
+    const [searchParams, setSearchParams] = useState(() => {
+        const saved = localStorage.getItem('searchParams');
+        return saved ? JSON.parse(saved) : {
+            query: null,
+            categoryId: null,
+            minPrice: null,
+            maxPrice: null,
+            location: null,
+            sortBy: null,
+        };
     });
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isModerator, setIsModerator] = useState(false);
+    
+    // Сохраняем состояние в localStorage при изменении
+    useEffect(() => {
+        localStorage.setItem('currentPage', currentPage);
+    }, [currentPage]);
+    
+    useEffect(() => {
+        localStorage.setItem('isDarkTheme', isDarkTheme.toString());
+    }, [isDarkTheme]);
+    
+    useEffect(() => {
+        if (selectedListingId) {
+            localStorage.setItem('selectedListingId', selectedListingId.toString());
+        } else {
+            localStorage.removeItem('selectedListingId');
+        }
+    }, [selectedListingId]);
+    
+    useEffect(() => {
+        localStorage.setItem('searchParams', JSON.stringify(searchParams));
+    }, [searchParams]);
+
+    // Обработчик истечения сессии
+    useEffect(() => {
+        const handleAuthExpired = () => {
+            console.log('Сессия истекла, перенаправляем на страницу входа');
+            setIsAuthenticated(false);
+            setIsAdmin(false);
+            setCurrentPage('home');
+            // Можно показать уведомление пользователю
+            alert('Ваша сессия истекла. Пожалуйста, войдите снова.');
+        };
+
+        window.addEventListener('auth:expired', handleAuthExpired);
+        
+        return () => {
+            window.removeEventListener('auth:expired', handleAuthExpired);
+        };
+    }, []);
 
     // Проверяем авторизацию и роль при загрузке
     useEffect(() => {
         const checkAuth = async () => {
             const authenticated = tokenStorage.isAuthenticated();
-            setIsAuthenticated(authenticated);
             
             if (authenticated) {
                 try {
+                    // Используем userAPI.getMe(), который использует fetchWithAuth
+                    // и автоматически обновит токен при необходимости
                     const me = await userAPI.getMe();
                     console.log('Данные пользователя при загрузке:', me);
+                    
+                    // Если запрос успешен, значит токены валидны
+                    setIsAuthenticated(true);
                     
                     // Извлекаем роль из ответа (UserMeResponse возвращает role как строку)
                     const role = me.role || '';
                     console.log('Извлеченная роль:', role, '(полный объект me:', me, ')');
                     
-                    // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
+                    // Проверка ролей
                     const isUserAdmin = role === 'ADMIN';
-                    console.log('Проверка роли ADMIN:', isUserAdmin, '(роль:', role, ')');
+                    const isUserModerator = role === 'MODERATOR' || role === 'ADMIN';
+                    console.log('Проверка роли ADMIN:', isUserAdmin, 'MODERATOR:', isUserModerator, '(роль:', role, ')');
                     
                     setIsAdmin(isUserAdmin);
+                    setIsModerator(isUserModerator);
                     
                     // Если роль не ADMIN, явно логируем это
-                    if (role && role !== 'ADMIN') {
-                        console.log('Пользователь не администратор. Роль:', role);
+                    if (role && role !== 'ADMIN' && role !== 'MODERATOR') {
+                        console.log('Пользователь не администратор и не модератор. Роль:', role);
                     }
                 } catch (error) {
                     console.error('Ошибка при получении данных пользователя:', error);
+                    // Если ошибка связана с истечением сессии или авторизацией
+                    if (error.message && (
+                        error.message.includes('Сессия истекла') || 
+                        error.message.includes('Необходима авторизация') ||
+                        error.message.includes('Unauthorized')
+                    )) {
+                    // Очищаем токены и состояние
+                    tokenStorage.clearTokens();
+                    setIsAuthenticated(false);
                     setIsAdmin(false);
+                    setIsModerator(false);
+                    setCurrentPage('home');
+                        // Очищаем сохраненное состояние
+                        localStorage.removeItem('currentPage');
+                        localStorage.removeItem('selectedListingId');
+            } else {
+                setIsAuthenticated(false);
+                setIsAdmin(false);
+                setIsModerator(false);
+            }
                 }
             } else {
+                setIsAuthenticated(false);
                 setIsAdmin(false);
             }
         };
         checkAuth();
-    }, [isAuthenticated]);
+    }, []); // Убираем зависимость от isAuthenticated, чтобы не было бесконечного цикла
 
-    // Перенаправляем администратора на панель администратора при загрузке или изменении роли
-    useEffect(() => {
-        if (isAuthenticated && isAdmin && currentPage === 'home') {
-            console.log('✓ Перенаправление АДМИНИСТРАТОРА на панель администратора (isAdmin:', isAdmin, ')');
-            setCurrentPage('admin');
-        } else if (isAuthenticated && !isAdmin && currentPage === 'home') {
-            console.log('Пользователь не администратор, остается на главной странице (isAdmin:', isAdmin, ')');
-        }
-    }, [isAuthenticated, isAdmin, currentPage]);
+    // Убрана автоматическая перенаправление администратора на панель администратора
+    // Администратор может свободно переходить на главную страницу и другие разделы
 
     const handleLogin = async () => {
         console.log('handleLogin вызван');
@@ -87,7 +162,7 @@ export default function App() {
         
         if (!accessToken || !refreshToken) {
             console.error('Токены не найдены в localStorage при handleLogin');
-            return;
+            throw new Error('Токены авторизации не найдены');
         }
         
         console.log('Токены найдены, обновляем состояние');
@@ -103,29 +178,30 @@ export default function App() {
             const role = me.role || '';
             console.log('Извлеченная роль при входе:', role, '(полный объект me:', me, ')');
             
-            // Строгая проверка: только 'ADMIN', не 'MODERATOR' и не другие роли
+            // Проверка ролей
             const isUserAdmin = role === 'ADMIN';
-            console.log('Проверка роли ADMIN при входе:', isUserAdmin, '(роль:', role, ')');
+            const isUserModerator = role === 'MODERATOR' || role === 'ADMIN';
+            console.log('Проверка роли ADMIN при входе:', isUserAdmin, 'MODERATOR:', isUserModerator, '(роль:', role, ')');
             
             setIsAdmin(isUserAdmin);
+            setIsModerator(isUserModerator);
             
-            // Если пользователь администратор, открываем панель администратора
-            if (isUserAdmin) {
-                console.log('✓ Пользователь является АДМИНИСТРАТОРОМ (ADMIN), открываем панель администратора');
-                setCurrentPage('admin');
-            } else {
-                // Явно логируем, если это не администратор
-                if (role) {
-                    console.log('Пользователь НЕ администратор. Роль:', role, '- открываем главную страницу');
-                } else {
-                    console.log('Роль не определена - открываем главную страницу');
-                }
-                setCurrentPage('home');
-            }
+            // Перенаправляем на главную страницу после успешного входа
+            setCurrentPage('home');
+            console.log('Перенаправление на главную страницу после входа');
+            
+            // Убрано автоматическое перенаправление администратора
+            // Администратор может свободно выбирать страницу через навигацию
+            // Вкладка "Панель администратора" доступна в навигации для администратора
         } catch (error) {
             console.error('Ошибка при получении данных пользователя:', error);
+            // Если не удалось получить данные пользователя, очищаем токены и состояние
+            tokenStorage.clearTokens();
+            setIsAuthenticated(false);
             setIsAdmin(false);
+            setIsModerator(false);
             setCurrentPage('home');
+            throw error; // Пробрасываем ошибку дальше
         }
     };
 
@@ -147,6 +223,11 @@ export default function App() {
             setIsAuthenticated(false);
             setCurrentPage('home');
             setSelectedListingId(null);
+            
+            // Очищаем сохраненное состояние из localStorage
+            localStorage.removeItem('currentPage');
+            localStorage.removeItem('selectedListingId');
+            localStorage.removeItem('searchParams');
             
             // Очищаем все данные из localStorage (на случай, если есть другие данные)
             // tokenStorage.clearTokens() уже вызывается в authAPI.logout()
@@ -180,7 +261,8 @@ export default function App() {
         onLoginClick: () => setCurrentPage('login'),
         onLogout: handleLogout,
         onNavigate: setCurrentPage,
-        isAdmin
+        isAdmin,
+        isModerator
     };
     
     // Логируем commonProps при изменении isAdmin
@@ -230,7 +312,12 @@ export default function App() {
             case 'create-listing':
                 return (
                     <CreateListingPage
-                        onBack={() => setCurrentPage('profile')}
+                        onBack={() => {
+                            setEditAdData(null);
+                            setCurrentPage('profile');
+                        }}
+                        editAdData={editAdData}
+                        onEditComplete={() => setEditAdData(null)}
                         {...commonProps}
                     />
                 );
@@ -243,7 +330,14 @@ export default function App() {
                     <ProfilePage
                         {...commonProps}
                         onViewListing={handleViewListing}
-                        onCreateListing={() => setCurrentPage('create-listing')}
+                        onCreateListing={() => {
+                            setEditAdData(null);
+                            setCurrentPage('create-listing');
+                        }}
+                        onEditDraft={(adData) => {
+                            setEditAdData(adData);
+                            setCurrentPage('create-listing');
+                        }}
                     />
                 );
 
@@ -264,14 +358,30 @@ export default function App() {
                 console.log('[App] Рендеринг AdminPanel - isAdmin из commonProps:', commonProps.isAdmin);
                 return <AdminPanel {...commonProps} initialTab={searchParams.adminTab || 'users'} />;
 
+            case 'moderation':
+                return (
+                    <ModerationPage
+                        {...commonProps}
+                        onViewListing={(id) => {
+                            setSelectedListingId(id);
+                            setCurrentPage('moderation-listing');
+                        }}
+                    />
+                );
+
+            case 'moderation-listing':
+                return selectedListingId ? (
+                    <ModerationListingDetailPage
+                        listingId={selectedListingId}
+                        onBack={() => setCurrentPage('moderation')}
+                        {...commonProps}
+                    />
+                ) : null;
+
             default:
-                // Если пользователь администратор и находится на главной странице, показываем панель администратора
-                // Строгая проверка: только для роли ADMIN, не для MODERATOR
-                if (isAuthenticated && isAdmin && currentPage === 'home') {
-                    console.log('[App] Рендеринг AdminPanel из default case - isAdmin:', isAdmin, 'commonProps.isAdmin:', commonProps.isAdmin);
-                    return <AdminPanel {...commonProps} />;
-                }
-                
+                // Убрана автоматическая замена главной страницы на панель администратора
+                // Администратор может свободно переходить на главную страницу
+                // Панель администратора доступна через отдельную вкладку в навигации
                 return (
                     <div className={isDarkTheme ? 'min-h-screen bg-neutral-950' : 'min-h-screen bg-stone-100'}>
                         <Header
@@ -285,6 +395,7 @@ export default function App() {
                             currentPage={currentPage}
                             onNavigate={setCurrentPage}
                             isAdmin={isAdmin}
+                            isModerator={isModerator}
                         />
                         <Hero
                             isDarkTheme={isDarkTheme}
@@ -310,6 +421,8 @@ export default function App() {
                             isDarkTheme={isDarkTheme}
                             onViewListing={handleViewListing}
                             onNavigate={setCurrentPage}
+                            isAuthenticated={isAuthenticated}
+                            onLoginClick={() => setCurrentPage('login')}
                         />
                         <Footer isDarkTheme={isDarkTheme} />
                     </div>

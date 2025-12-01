@@ -1,11 +1,17 @@
 package com.bsuir.adhubbackand.services;
 
+import com.bsuir.adhubbackand.exception.AdNotFoundException;
 import com.bsuir.adhubbackand.exception.NotificationNotFoundException;
 import com.bsuir.adhubbackand.exception.UserNotFoundException;
+import com.bsuir.adhubbackand.model.dto.request.notification.CreateNotificationRequest;
 import com.bsuir.adhubbackand.model.dto.response.NotificationResponse;
+import com.bsuir.adhubbackand.model.entities.Ad;
 import com.bsuir.adhubbackand.model.entities.Notification;
+import com.bsuir.adhubbackand.model.entities.NotificationType;
 import com.bsuir.adhubbackand.model.entities.User;
+import com.bsuir.adhubbackand.repositories.AdRepository;
 import com.bsuir.adhubbackand.repositories.NotificationRepository;
+import com.bsuir.adhubbackand.repositories.NotificationTypeRepository;
 import com.bsuir.adhubbackand.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +33,8 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final NotificationTypeRepository notificationTypeRepository;
+    private final AdRepository adRepository;
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> getUserNotifications(Long userId) {
@@ -98,6 +106,41 @@ public class NotificationService {
 
         notificationRepository.delete(notification);
         log.info("Уведомление {} удалено пользователем {}", notificationId, userId);
+    }
+
+    @Transactional
+    public NotificationResponse createNotification(CreateNotificationRequest request) {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+
+        NotificationType notificationType = notificationTypeRepository.findById(request.notificationTypeId())
+                .orElseThrow(() -> new RuntimeException("Тип уведомления с ID " + request.notificationTypeId() + " не найден"));
+
+        Ad relatedAd = null;
+        if (request.relatedAdId() != null) {
+            relatedAd = adRepository.findById(request.relatedAdId())
+                    .orElseThrow(() -> new AdNotFoundException(request.relatedAdId()));
+        }
+
+        Notification notification = Notification.builder()
+                .user(user)
+                .notificationType(notificationType)
+                .title(request.title())
+                .message(request.message())
+                .relatedAd(relatedAd)
+                .sentAt(LocalDateTime.now())
+                .isRead(false)
+                .build();
+
+        notification = notificationRepository.save(notification);
+        log.info("Создано уведомление {} для пользователя {}", notification.getId(), user.getId());
+
+        return mapToResponse(notification);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationType> getAllNotificationTypes() {
+        return notificationTypeRepository.findAll();
     }
 
     private NotificationResponse mapToResponse(Notification notification) {

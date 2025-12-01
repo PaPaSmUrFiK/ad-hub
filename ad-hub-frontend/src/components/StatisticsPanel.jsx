@@ -22,11 +22,34 @@ export function StatisticsPanel({ isDarkTheme }) {
         try {
             setLoading(true);
             setError('');
+            console.log('[StatisticsPanel] Загрузка статистики...');
             const data = await adminAPI.getSearchStatistics();
-            setStats(data);
+            console.log('[StatisticsPanel] Получены данные статистики:', data);
+            
+            // Проверяем, что данные получены
+            if (!data) {
+                throw new Error('Сервер не вернул данные статистики');
+            }
+            
+            // Устанавливаем данные, даже если они пустые (все нули)
+            setStats({
+                totalSearches: data.totalSearches || 0,
+                searchesToday: data.searchesToday || 0,
+                searchesThisWeek: data.searchesThisWeek || 0,
+                searchesThisMonth: data.searchesThisMonth || 0,
+                topQueries: data.topQueries || []
+            });
         } catch (err) {
-            console.error('Ошибка при загрузке статистики:', err);
+            console.error('[StatisticsPanel] Ошибка при загрузке статистики:', err);
             setError(err.message || 'Не удалось загрузить статистику');
+            // Устанавливаем пустые данные при ошибке, чтобы компонент мог отобразить сообщение
+            setStats({
+                totalSearches: 0,
+                searchesToday: 0,
+                searchesThisWeek: 0,
+                searchesThisMonth: 0,
+                topQueries: []
+            });
         } finally {
             setLoading(false);
         }
@@ -56,10 +79,27 @@ export function StatisticsPanel({ isDarkTheme }) {
         );
     }
 
-    if (error) {
+    if (error && !stats) {
         return (
             <div className={`p-4 rounded ${isDarkTheme ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-700'}`}>
-                {error}
+                <p className="font-semibold mb-2">Ошибка загрузки статистики</p>
+                <p>{error}</p>
+                <button
+                    onClick={loadStatistics}
+                    className={`mt-4 px-4 py-2 rounded ${isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700'} text-white`}
+                >
+                    Попробовать снова
+                </button>
+            </div>
+        );
+    }
+
+    // Если stats еще не загружен (не должно происходить, но на всякий случай)
+    if (!stats) {
+        return (
+            <div className="text-center py-12">
+                <Loader2 className={`h-8 w-8 ${textMuted} mx-auto animate-spin`} />
+                <p className={`${textMuted} mt-2`}>Загрузка статистики...</p>
             </div>
         );
     }
@@ -71,30 +111,37 @@ export function StatisticsPanel({ isDarkTheme }) {
                 <p className={textMuted}>Аналитика по поисковым запросам на платформе</p>
             </div>
 
+            {/* Показываем предупреждение об ошибке, если есть, но данные загружены */}
+            {error && stats && (
+                <div className={`mb-4 p-3 rounded ${isDarkTheme ? 'bg-yellow-900/20 text-yellow-400' : 'bg-yellow-50 text-yellow-700'} text-sm`}>
+                    <p>⚠️ {error}</p>
+                </div>
+            )}
+
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
                     icon={Search}
                     title="Всего поисков"
-                    value={stats?.totalSearches || 0}
+                    value={stats.totalSearches || 0}
                     subtitle="За все время"
                 />
                 <StatCard
                     icon={Calendar}
                     title="Сегодня"
-                    value={stats?.searchesToday || 0}
+                    value={stats.searchesToday || 0}
                     subtitle="Поисков за сегодня"
                 />
                 <StatCard
                     icon={TrendingUp}
                     title="На этой неделе"
-                    value={stats?.searchesThisWeek || 0}
+                    value={stats.searchesThisWeek || 0}
                     subtitle="Поисков за неделю"
                 />
                 <StatCard
                     icon={BarChart3}
                     title="В этом месяце"
-                    value={stats?.searchesThisMonth || 0}
+                    value={stats.searchesThisMonth || 0}
                     subtitle="Поисков за месяц"
                 />
             </div>
@@ -105,7 +152,7 @@ export function StatisticsPanel({ isDarkTheme }) {
                     <TrendingUp className="h-5 w-5" />
                     Популярные запросы
                 </h3>
-                {stats?.topQueries && stats.topQueries.length > 0 ? (
+                {stats.topQueries && stats.topQueries.length > 0 ? (
                     <div className="space-y-3">
                         {stats.topQueries.map((query, index) => (
                             <div

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import { User, MapPin, Star, Package, Plus, Edit, Settings, Camera } from 'lucide-react';
+import { User, MapPin, Star, Package, Plus, Edit, Settings, Camera, Lock, Upload, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { ListingCard } from './ListingCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { userAPI } from '../api/user';
@@ -10,6 +12,7 @@ import { adsAPI } from '../api/ads';
 import { favoritesAPI } from '../api/favorites';
 import { getPrimaryImage, formatPrice } from '../utils/categoryUtils';
 import { ImageWithFallback } from './ui/ImageWithFallback';
+import { tokenStorage } from '../api/auth';
 
 export function ProfilePage({
                                 isDarkTheme,
@@ -20,7 +23,9 @@ export function ProfilePage({
                                 onNavigate,
                                 onViewListing,
                                 onCreateListing,
-                                isAdmin = false
+                                onEditDraft,
+                                isAdmin = false,
+                                isModerator = false
                             }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -32,7 +37,11 @@ export function ProfilePage({
     
     const [profile, setProfile] = useState(null);
     const [activeAds, setActiveAds] = useState([]);
+    const [moderationAds, setModerationAds] = useState([]);
+    const [draftAds, setDraftAds] = useState([]);
     const [archivedAds, setArchivedAds] = useState([]);
+    const [publishingAdId, setPublishingAdId] = useState(null);
+    const [favoriteAdIds, setFavoriteAdIds] = useState(new Set());
     const [stats, setStats] = useState({
         activeCount: 0,
         totalViews: 0,
@@ -48,15 +57,102 @@ export function ProfilePage({
         lastName: '',
         phone: '',
     });
+    const [showPasswordFields, setShowPasswordFields] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        newPassword: '',
+        confirmPassword: '',
+    });
+    const [passwordError, setPasswordError] = useState('');
 
     // Загружаем данные профиля при монтировании компонента
     useEffect(() => {
         if (isAuthenticated) {
             loadProfileData();
+            loadFavorites();
         } else {
             setLoading(false);
+            setFavoriteAdIds(new Set());
         }
     }, [isAuthenticated]);
+
+    // Загружаем избранные объявления
+    const loadFavorites = async () => {
+        if (!isAuthenticated || !tokenStorage.isAuthenticated()) {
+            setFavoriteAdIds(new Set());
+            return;
+        }
+        
+        try {
+            const favorites = await favoritesAPI.getFavorites();
+            const favoriteIds = new Set((favorites.favorites || []).map(f => f.adId));
+            setFavoriteAdIds(favoriteIds);
+        } catch (error) {
+            console.error('Ошибка при загрузке избранного:', error);
+            setFavoriteAdIds(new Set());
+        }
+    };
+
+    const handlePublishAd = async (adId) => {
+        if (!window.confirm('Вы уверены, что хотите опубликовать это объявление? Оно будет отправлено на модерацию.')) {
+            return;
+        }
+
+        try {
+            setPublishingAdId(adId);
+            setError('');
+            await adsAPI.publishAd(adId);
+            // Перезагружаем данные профиля
+            await loadProfileData();
+            alert('Объявление отправлено на модерацию');
+        } catch (err) {
+            console.error('Ошибка при публикации объявления:', err);
+            setError(err.message || 'Не удалось опубликовать объявление');
+        } finally {
+            setPublishingAdId(null);
+        }
+    };
+
+    // Обработчик изменения избранного
+    const handleFavoriteToggle = async (adId) => {
+        if (!isAuthenticated || !tokenStorage.isAuthenticated()) {
+            return;
+        }
+
+        // Оптимистичное обновление - сразу меняем состояние для мгновенной перерисовки
+        const isCurrentlyFavorite = favoriteAdIds.has(adId);
+        const newFavoriteState = !isCurrentlyFavorite;
+        
+        // Сразу обновляем состояние
+        setFavoriteAdIds(prev => {
+            const newSet = new Set(prev);
+            if (newFavoriteState) {
+                newSet.add(adId);
+            } else {
+                newSet.delete(adId);
+            }
+            return newSet;
+        });
+
+        try {
+            if (isCurrentlyFavorite) {
+                await favoritesAPI.removeFromFavorites(adId);
+            } else {
+                await favoritesAPI.addToFavorites(adId);
+            }
+        } catch (error) {
+            console.error('Ошибка при изменении избранного:', error);
+            // Откатываем изменение при ошибке
+            setFavoriteAdIds(prev => {
+                const newSet = new Set(prev);
+                if (isCurrentlyFavorite) {
+                    newSet.add(adId);
+                } else {
+                    newSet.delete(adId);
+                }
+                return newSet;
+            });
+        }
+    };
 
     const loadProfileData = async () => {
         try {
@@ -73,29 +169,49 @@ export function ProfilePage({
                 phone: profileData.phone || '',
             });
 
-            // Загружаем активные объявления пользователя
+            // Загружаем все объявления пользователя (без фильтра по статусу)
             let activeAdsData = null;
+            let moderationAdsData = null;
+            let draftAdsData = null;
             try {
                 const userId = profileData.id || profileData.userId;
                 if (userId) {
-                    // Используем новый endpoint для получения объявлений пользователя
+                    // Загружаем активные объявления
                     activeAdsData = await adsAPI.getAdsByUserId(userId, { status: 'ACTIVE', page: 1, size: 100 });
                     setActiveAds(activeAdsData.content || []);
+                    
+                    // Загружаем объявления на модерации
+                    moderationAdsData = await adsAPI.getAdsByUserId(userId, { status: 'ON_MODERATION', page: 1, size: 100 });
+                    setModerationAds(moderationAdsData.content || []);
+                    
+                    // Загружаем черновики
+                    draftAdsData = await adsAPI.getAdsByUserId(userId, { status: 'DRAFT', page: 1, size: 100 });
+                    setDraftAds(draftAdsData.content || []);
                 } else {
                     setActiveAds([]);
+                    setModerationAds([]);
+                    setDraftAds([]);
                 }
             } catch (err) {
-                console.error('Ошибка при загрузке активных объявлений:', err);
+                console.error('Ошибка при загрузке объявлений:', err);
                 setActiveAds([]);
+                setModerationAds([]);
+                setDraftAds([]);
             }
 
-            // Загружаем архивные объявления (SOLD, ARCHIVED и т.д.)
+            // Загружаем архивные объявления (ARCHIVED, BLOCKED, DELETED)
             try {
                 const userId = profileData.id || profileData.userId;
                 if (userId) {
-                    // Используем новый endpoint для получения объявлений пользователя
-                    const archivedAdsData = await adsAPI.getAdsByUserId(userId, { status: 'SOLD', page: 1, size: 100 });
-                    setArchivedAds(archivedAdsData.content || []);
+                    // Загружаем архивные, заблокированные и удаленные объявления
+                    const archivedAdsData = await adsAPI.getAdsByUserId(userId, { status: 'ARCHIVED', page: 1, size: 100 });
+                    const blockedAdsData = await adsAPI.getAdsByUserId(userId, { status: 'BLOCKED', page: 1, size: 100 });
+                    const deletedAdsData = await adsAPI.getAdsByUserId(userId, { status: 'DELETED', page: 1, size: 100 });
+                    setArchivedAds([
+                        ...(archivedAdsData.content || []), 
+                        ...(blockedAdsData.content || []), 
+                        ...(deletedAdsData.content || [])
+                    ]);
                 } else {
                     setArchivedAds([]);
                 }
@@ -129,14 +245,30 @@ export function ProfilePage({
 
     const handleEditProfile = () => {
         setIsEditing(true);
+        setShowPasswordFields(false);
+        setPasswordForm({
+            newPassword: '',
+            confirmPassword: '',
+        });
+        setPasswordError('');
     };
 
     const handleSaveProfile = async () => {
         try {
             setError('');
+            setPasswordError('');
+
+
+            // Обновляем профиль
             const updatedProfile = await userAPI.updateProfile(editForm);
             setProfile(updatedProfile);
             setIsEditing(false);
+            setShowPasswordFields(false);
+            setPasswordForm({
+                newPassword: '',
+                confirmPassword: '',
+            });
+            setPasswordError('');
         } catch (err) {
             console.error('Ошибка при обновлении профиля:', err);
             setError(err.message || 'Не удалось обновить профиль');
@@ -145,6 +277,12 @@ export function ProfilePage({
 
     const handleCancelEdit = () => {
         setIsEditing(false);
+        setShowPasswordFields(false);
+        setPasswordForm({
+            newPassword: '',
+            confirmPassword: '',
+        });
+        setPasswordError('');
         if (profile) {
             setEditForm({
                 username: profile.username || '',
@@ -154,6 +292,41 @@ export function ProfilePage({
             });
         }
     };
+
+    const handleChangePassword = async () => {
+        setPasswordError('');
+
+        // Валидация
+        if (!passwordForm.newPassword) {
+            setPasswordError('Введите новый пароль');
+            return;
+        }
+        if (passwordForm.newPassword.length < 6) {
+            setPasswordError('Новый пароль должен содержать минимум 6 символов');
+            return;
+        }
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            setPasswordError('Новые пароли не совпадают');
+            return;
+        }
+
+        try {
+            await userAPI.changePassword({
+                newPassword: passwordForm.newPassword,
+            });
+            setShowPasswordFields(false);
+            setPasswordForm({
+                newPassword: '',
+                confirmPassword: '',
+            });
+            setPasswordError('');
+            alert('Пароль успешно изменен');
+        } catch (err) {
+            console.error('Ошибка при смене пароля:', err);
+            setPasswordError(err.message || 'Не удалось изменить пароль');
+        }
+    };
+
 
     const handleAvatarUpload = async (e) => {
         const file = e.target.files[0];
@@ -185,15 +358,32 @@ export function ProfilePage({
         const primaryImage = getPrimaryImage(ad.mediaFiles);
         const isNew = ad.createdAt && new Date(ad.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         
+        // Получаем все изображения из mediaFiles
+        const allImages = ad.mediaFiles && ad.mediaFiles.length > 0
+            ? ad.mediaFiles
+                .filter(media => media.fileType === 'IMAGE')
+                .sort((a, b) => {
+                    // Сначала primary, потом по displayOrder
+                    if (a.isPrimary) return -1;
+                    if (b.isPrimary) return 1;
+                    return (a.displayOrder || 0) - (b.displayOrder || 0);
+                })
+                .map(media => media.fileUrl)
+            : [];
+        
         return {
             id: ad.id,
             title: ad.title,
             price: formatPrice(ad.price, ad.currency),
             location: ad.location || 'Не указано',
             image: primaryImage || 'https://via.placeholder.com/400x300?text=No+Image',
+            images: allImages.length > 0 ? allImages : (primaryImage ? [primaryImage] : []),
             isNew: isNew,
             isFeatured: ad.viewCount > 100,
             views: ad.viewCount || 0,
+            status: ad.status, // Передаем статус объявления
+            isFavorite: favoriteAdIds.has(ad.id), // Передаем состояние избранного
+            onFavoriteToggle: () => handleFavoriteToggle(ad.id), // Обработчик изменения избранного
         };
     };
 
@@ -211,6 +401,7 @@ export function ProfilePage({
                 onNavigate={onNavigate}
                 hideCreateButton={true}
                 isAdmin={isAdmin}
+                isModerator={isModerator}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -311,6 +502,7 @@ export function ProfilePage({
                                             className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${isDarkTheme ? 'bg-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`}
                                         />
                                     </div>
+
                                     <div className="flex gap-2">
                                         <Button
                                             className={`flex-1 ${buttonBg} text-white`}
@@ -337,6 +529,60 @@ export function ProfilePage({
                                         <Edit className="h-4 w-4 mr-2" />
                                         Редактировать профиль
                                     </Button>
+                                    
+                                    {/* Кнопка и форма смены пароля */}
+                                    <div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className={`w-full ${borderColor}`}
+                                            onClick={() => setShowPasswordFields(!showPasswordFields)}
+                                        >
+                                            <Lock className="h-4 w-4 mr-2" />
+                                            {showPasswordFields ? 'Скрыть смену пароля' : 'Сменить пароль'}
+                                        </Button>
+                                        
+                                        {/* Поля смены пароля */}
+                                        {showPasswordFields && (
+                                            <div className={`mt-3 space-y-3 p-4 rounded-lg border ${borderColor} ${isDarkTheme ? 'bg-neutral-800/50' : 'bg-stone-50'}`}>
+                                                {passwordError && (
+                                                    <div className={`p-3 rounded-lg ${isDarkTheme ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-700'} text-sm`}>
+                                                        {passwordError}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <label className={`block text-sm ${textSecondary} mb-1`}>Новый пароль *</label>
+                                                    <input
+                                                        type="password"
+                                                        value={passwordForm.newPassword}
+                                                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                                                        placeholder="Минимум 6 символов"
+                                                        className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${isDarkTheme ? 'bg-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`}
+                                                        minLength={6}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm ${textSecondary} mb-1`}>Подтвердите новый пароль *</label>
+                                                    <input
+                                                        type="password"
+                                                        value={passwordForm.confirmPassword}
+                                                        onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                                                        placeholder="Повторите новый пароль"
+                                                        className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${isDarkTheme ? 'bg-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`}
+                                                        minLength={6}
+                                                    />
+                                                </div>
+                                                <Button
+                                                    className={`w-full ${buttonBg} text-white`}
+                                                    onClick={handleChangePassword}
+                                                    disabled={!passwordForm.newPassword || !passwordForm.confirmPassword}
+                                                >
+                                                    <Lock className="h-4 w-4 mr-2" />
+                                                    Изменить пароль
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -402,6 +648,24 @@ export function ProfilePage({
                                     Активные ({activeAds.length})
                                 </TabsTrigger>
                                 <TabsTrigger
+                                    value="moderation"
+                                    className={isDarkTheme
+                                        ? 'data-[state=active]:bg-orange-600 data-[state=active]:text-white text-neutral-300'
+                                        : 'data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700'
+                                    }
+                                >
+                                    На модерации ({moderationAds.length})
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="draft"
+                                    className={isDarkTheme
+                                        ? 'data-[state=active]:bg-orange-600 data-[state=active]:text-white text-neutral-300'
+                                        : 'data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700'
+                                    }
+                                >
+                                    Черновики ({draftAds.length})
+                                </TabsTrigger>
+                                <TabsTrigger
                                     value="archive"
                                     className={isDarkTheme
                                         ? 'data-[state=active]:bg-orange-600 data-[state=active]:text-white text-neutral-300'
@@ -454,6 +718,74 @@ export function ProfilePage({
                                 )}
                             </TabsContent>
 
+                            <TabsContent value="moderation" className="mt-6">
+                                {moderationAds.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        {moderationAds.map((ad) => {
+                                            const cardData = mapAdToCard(ad);
+                                            return (
+                                                <div key={ad.id} className="space-y-3">
+                                                    <ListingCard
+                                                        {...cardData}
+                                                        isDarkTheme={isDarkTheme}
+                                                        onClick={() => onViewListing && onViewListing(ad.id)}
+                                                    />
+                                                    <div className={`${cardBg} rounded-lg border ${borderColor} p-3`}>
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <div>
+                                                                <span className={`${isDarkTheme ? 'text-yellow-400' : 'text-yellow-600'} font-medium`}>
+                                                                    ⏳ На модерации
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className={`${cardBg} rounded-xl border ${borderColor} p-12 text-center`}>
+                                        <Package className={`h-12 w-12 ${textMuted} mx-auto mb-4`} />
+                                        <h3 className={`${textColor} text-xl font-semibold mb-2`}>Нет объявлений на модерации</h3>
+                                        <p className={textMuted}>Все ваши объявления уже прошли модерацию</p>
+                                    </div>
+                                )}
+                            </TabsContent>
+
+                            <TabsContent value="draft" className="mt-6">
+                                {draftAds.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        {draftAds.map((ad) => {
+                                            const cardData = mapAdToCard(ad);
+                                            return (
+                                                <div key={ad.id} className="space-y-3">
+                                                    <ListingCard
+                                                        {...cardData}
+                                                        isDarkTheme={isDarkTheme}
+                                                        onClick={() => onEditDraft && onEditDraft(ad)}
+                                                    />
+                                                    <div className={`${cardBg} rounded-lg border ${borderColor} p-3`}>
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <div>
+                                                                <span className={`${isDarkTheme ? 'text-gray-400' : 'text-gray-600'} font-medium`}>
+                                                                    📝 Черновик
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className={`${cardBg} rounded-xl border ${borderColor} p-12 text-center`}>
+                                        <Package className={`h-12 w-12 ${textMuted} mx-auto mb-4`} />
+                                        <h3 className={`${textColor} text-xl font-semibold mb-2`}>Нет черновиков</h3>
+                                        <p className={textMuted}>Здесь будут отображаться ваши неопубликованные объявления</p>
+                                    </div>
+                                )}
+                            </TabsContent>
+
                             <TabsContent value="archive" className="mt-6">
                                 {archivedAds.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -466,6 +798,25 @@ export function ProfilePage({
                                                         isDarkTheme={isDarkTheme}
                                                         onClick={() => onViewListing && onViewListing(ad.id)}
                                                     />
+                                                    <div className={`${cardBg} rounded-lg border ${borderColor} p-3`}>
+                                                        <Button
+                                                            className={`w-full ${buttonBg} text-white`}
+                                                            onClick={() => handlePublishAd(ad.id)}
+                                                            disabled={publishingAdId === ad.id}
+                                                        >
+                                                            {publishingAdId === ad.id ? (
+                                                                <>
+                                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                    Публикация...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Upload className="h-4 w-4 mr-2" />
+                                                                    Опубликовать
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}

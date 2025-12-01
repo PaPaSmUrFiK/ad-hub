@@ -1,18 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { adminAPI } from '../api/admin';
 import { userAPI } from '../api/user';
-import { Search, Shield, ShieldCheck, ShieldX, Trash2, Edit, X, Check, Loader2 } from 'lucide-react';
+import { Search, Shield, ShieldCheck, ShieldX, Trash2, Loader2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from './ui/dialog';
 
 export function UsersManagement({ isDarkTheme }) {
     const [users, setUsers] = useState([]);
@@ -28,43 +20,8 @@ export function UsersManagement({ isDarkTheme }) {
         hasNext: false,
         hasPrevious: false,
     });
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [showRoleDialog, setShowRoleDialog] = useState(false);
-    const [newRole, setNewRole] = useState('');
     const [actionLoading, setActionLoading] = useState(null);
-    const isOpeningRef = useRef(false);
-    const dialogOpenTimeoutRef = useRef(null);
-
-    // Отслеживание изменений состояния диалога
-    useEffect(() => {
-        console.log('[UsersManagement] showRoleDialog изменился:', showRoleDialog, 'selectedUser:', selectedUser);
-        if (showRoleDialog) {
-            // Устанавливаем флаг открытия
-            isOpeningRef.current = true;
-            // Очищаем предыдущий таймаут если есть
-            if (dialogOpenTimeoutRef.current) {
-                clearTimeout(dialogOpenTimeoutRef.current);
-            }
-            // Сбрасываем флаг открытия после задержки
-            dialogOpenTimeoutRef.current = setTimeout(() => {
-                isOpeningRef.current = false;
-                console.log('[UsersManagement] Флаг isOpeningRef сброшен');
-            }, 200);
-        } else {
-            // Очищаем таймаут при закрытии
-            if (dialogOpenTimeoutRef.current) {
-                clearTimeout(dialogOpenTimeoutRef.current);
-                dialogOpenTimeoutRef.current = null;
-            }
-        }
-        
-        // Очистка при размонтировании
-        return () => {
-            if (dialogOpenTimeoutRef.current) {
-                clearTimeout(dialogOpenTimeoutRef.current);
-            }
-        };
-    }, [showRoleDialog, selectedUser]);
+    const [roleChanging, setRoleChanging] = useState(null); // ID пользователя, у которого меняется роль
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -160,27 +117,42 @@ export function UsersManagement({ isDarkTheme }) {
         }
     };
 
-    const handleChangeRole = async () => {
-        if (!selectedUser || !newRole) return;
-        
+    const handleRoleChange = async (userId, newRole, currentRole) => {
         // Проверяем, что не пытаемся изменить роль на ту же самую
-        if (selectedUser.roleName === newRole) {
-            alert('Пользователь уже имеет эту роль');
+        if (currentRole === newRole) {
             return;
         }
         
-        try {
-            setActionLoading(selectedUser.id);
-            await adminAPI.updateUserRole(selectedUser.id, newRole);
-            setShowRoleDialog(false);
-            setSelectedUser(null);
-            setNewRole('');
-            // Обновляем список пользователей
+        // Проверяем, что не пытаемся изменить свою роль
+        if (userId === currentUserId) {
+            alert('Вы не можете изменить свою роль');
+            // Откатываем значение в Select
             await loadUsers();
+            return;
+        }
+        
+        // Оптимистичное обновление - сразу меняем роль в UI
+        setUsers(prevUsers => 
+            prevUsers.map(user => 
+                user.id === userId ? { ...user, roleName: newRole } : user
+            )
+        );
+        
+        try {
+            console.log('[UsersManagement] Начинаем изменение роли, userId:', userId, 'newRole:', newRole);
+            setRoleChanging(userId);
+            await adminAPI.updateUserRole(userId, newRole);
+            console.log('[UsersManagement] Роль успешно изменена');
+            // Обновляем список пользователей для синхронизации с сервером
+            await loadUsers();
+            console.log('[UsersManagement] Список пользователей обновлен');
         } catch (err) {
+            console.error('[UsersManagement] Ошибка при изменении роли:', err);
             alert(err.message || 'Ошибка при изменении роли');
+            // Откатываем изменение - перезагружаем список пользователей
+            await loadUsers();
         } finally {
-            setActionLoading(null);
+            setRoleChanging(null);
         }
     };
 
@@ -199,22 +171,6 @@ export function UsersManagement({ isDarkTheme }) {
         }
     };
 
-    const openRoleDialog = (user, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        console.log('[UsersManagement] Открытие диалога изменения роли для пользователя:', user);
-        // Устанавливаем флаг перед изменением состояния
-        isOpeningRef.current = true;
-        setSelectedUser(user);
-        setNewRole(user.roleName || '');
-        // Используем setTimeout для асинхронного обновления состояния
-        setTimeout(() => {
-            setShowRoleDialog(true);
-            console.log('[UsersManagement] showRoleDialog установлен в true');
-        }, 0);
-    };
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Никогда';
@@ -322,23 +278,40 @@ export function UsersManagement({ isDarkTheme }) {
                                                 </div>
                                             </td>
                                             <td className={`px-4 py-3 text-sm ${textColor}`}>{user.email}</td>
-                                            <td className={`px-4 py-3 text-sm`}>{getRoleBadge(user.roleName)}</td>
+                                            <td className={`px-4 py-3 text-sm`}>
+                                                {user.id === currentUserId ? (
+                                                    // Для текущего пользователя показываем только badge
+                                                    getRoleBadge(user.roleName)
+                                                ) : (
+                                                    // Для других пользователей показываем Select с возможностью изменения
+                                                    <div className="flex items-center gap-2">
+                                                        <Select
+                                                            value={user.roleName}
+                                                            onValueChange={(newRole) => handleRoleChange(user.id, newRole, user.roleName)}
+                                                            disabled={roleChanging === user.id}
+                                                        >
+                                                            <SelectTrigger 
+                                                                className={`w-32 ${inputBg} ${roleChanging === user.id ? 'opacity-50' : ''}`}
+                                                            >
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent className={isDarkTheme ? 'bg-neutral-800 border-neutral-700' : ''}>
+                                                                <SelectItem value="USER">USER</SelectItem>
+                                                                <SelectItem value="MODERATOR">MODERATOR</SelectItem>
+                                                                <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        {roleChanging === user.id && (
+                                                            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className={`px-4 py-3 text-sm`}>{getStatusBadge(user.status)}</td>
                                             <td className={`px-4 py-3 text-sm ${textColor}`}>{user.adsCount}</td>
                                             <td className={`px-4 py-3 text-sm ${textMuted}`}>{formatDate(user.createdAt)}</td>
                                             <td className={`px-4 py-3 text-sm`}>
                                                 <div className="flex items-center gap-2">
-                                                    {user.id !== currentUserId && (
-                                                        <button
-                                                            onClick={(e) => openRoleDialog(user, e)}
-                                                            disabled={actionLoading === user.id}
-                                                            className={`p-1.5 rounded ${isDarkTheme ? 'hover:bg-neutral-800 text-neutral-300' : 'hover:bg-stone-100 text-stone-600'}`}
-                                                            title="Изменить роль"
-                                                            type="button"
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </button>
-                                                    )}
                                                     {user.id !== currentUserId && (
                                                         <>
                                                             {user.status === 'BLOCKED' ? (
@@ -503,79 +476,6 @@ export function UsersManagement({ isDarkTheme }) {
                 </>
             )}
 
-            {/* Role Dialog */}
-            <Dialog 
-                open={showRoleDialog}
-                onOpenChange={(open) => {
-                    console.log('[UsersManagement] Dialog onOpenChange вызван, open:', open, 'showRoleDialog:', showRoleDialog, 'isOpeningRef:', isOpeningRef.current);
-                    // Предотвращаем закрытие, если диалог только что открылся
-                    if (!open && isOpeningRef.current) {
-                        console.log('[UsersManagement] Предотвращено закрытие диалога (только что открылся), игнорируем');
-                        // Игнорируем закрытие, но не обновляем состояние
-                        return;
-                    }
-                    if (!open) {
-                        console.log('[UsersManagement] Закрытие диалога');
-                        setShowRoleDialog(false);
-                        setSelectedUser(null);
-                        setNewRole('');
-                    } else if (open && !showRoleDialog) {
-                        // Если пытаемся открыть, но состояние еще не обновлено
-                        console.log('[UsersManagement] Открытие диалога через onOpenChange');
-                        setShowRoleDialog(true);
-                    }
-                }}
-            >
-                <DialogContent 
-                    className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} 
-                    style={{ zIndex: 100 }}
-                >
-                    <DialogHeader>
-                        <DialogTitle className={textColor}>Изменить роль пользователя</DialogTitle>
-                        <DialogDescription className={textMuted}>
-                            Выберите новую роль для {selectedUser?.username}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Select value={newRole} onValueChange={setNewRole}>
-                            <SelectTrigger className={inputBg}>
-                                <SelectValue placeholder="Выберите роль" />
-                            </SelectTrigger>
-                            <SelectContent className={isDarkTheme ? 'bg-neutral-800 border-neutral-700' : ''}>
-                                <SelectItem value="USER">USER</SelectItem>
-                                <SelectItem value="MODERATOR">MODERATOR</SelectItem>
-                                <SelectItem value="ADMIN">ADMIN</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowRoleDialog(false)}
-                            className={borderColor}
-                        >
-                            Отмена
-                        </Button>
-                        <Button
-                            onClick={handleChangeRole}
-                            disabled={!newRole || actionLoading === selectedUser?.id}
-                            className={buttonBg}
-                        >
-                            {actionLoading === selectedUser?.id ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Сохранение...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Сохранить
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

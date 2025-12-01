@@ -12,7 +12,9 @@ export function CategoriesPage({
   isAuthenticated,
   onLoginClick,
   onLogout,
-  onNavigate
+  onNavigate,
+  isAdmin = false,
+  isModerator = false
 }) {
   const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
   const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -90,6 +92,8 @@ export function CategoriesPage({
         onToggleTheme={onToggleTheme}
         currentPage="categories"
         onNavigate={onNavigate}
+        isAdmin={isAdmin}
+        isModerator={isModerator}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

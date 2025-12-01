@@ -5,5 +5,6 @@ public enum AdStatus {
     DRAFT,
     ON_MODERATION,
     BLOCKED,
-    DELETED
+    DELETED,
+    ARCHIVED
 }

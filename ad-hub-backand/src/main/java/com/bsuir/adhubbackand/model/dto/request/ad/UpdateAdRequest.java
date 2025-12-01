@@ -1,5 +1,6 @@
 package com.bsuir.adhubbackand.model.dto.request.ad;
 
+import com.bsuir.adhubbackand.model.enums.AdStatus;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 
@@ -21,6 +22,9 @@ public record UpdateAdRequest(
         String location,
 
         @Positive(message = "ID категории должен быть положительным")
-        Long categoryId
+        Long categoryId,
+
+        // Статус объявления (опционально)
+        AdStatus status
 ) {}
 

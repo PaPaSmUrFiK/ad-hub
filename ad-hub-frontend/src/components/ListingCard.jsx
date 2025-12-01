@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Heart, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Heart, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { ImageWithFallback } from './ui/ImageWithFallback';
@@ -11,25 +11,68 @@ export function ListingCard({
                                 title,
                                 price,
                                 location,
-                                image,
+                                image, // Одно изображение (для обратной совместимости)
+                                images, // Массив изображений (приоритет над image)
                                 isNew,
                                 isFeatured,
                                 isDarkTheme = false,
                                 onClick,
                                 isFavorite: initialIsFavorite = false,
-                                onFavoriteToggle
+                                onFavoriteToggle,
+                                status // Статус объявления (ACTIVE, DRAFT, ON_MODERATION, etc.)
                             }) {
     const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
     const [isToggling, setIsToggling] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [hasUserInteracted, setHasUserInteracted] = useState(false);
+    
+    // Определяем массив изображений
+    const allImages = images && images.length > 0 ? images : (image ? [image] : []);
+    const currentImage = allImages[currentImageIndex] || image;
+    
+    // Синхронизируем состояние с пропсом только если пользователь не взаимодействовал
+    useEffect(() => {
+        if (!hasUserInteracted) {
+            setIsFavorite(initialIsFavorite);
+        }
+    }, [initialIsFavorite, hasUserInteracted]);
+    
+    // Сбрасываем индекс при изменении изображений
+    useEffect(() => {
+        setCurrentImageIndex(0);
+    }, [images, image]);
+    
+    const handlePreviousImage = (e) => {
+        e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : allImages.length - 1));
+    };
+    
+    const handleNextImage = (e) => {
+        e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev < allImages.length - 1 ? prev + 1 : 0));
+    };
     
     const cardBg = isDarkTheme ? 'bg-neutral-800' : 'bg-white';
     const borderColor = isDarkTheme ? 'border-neutral-700' : 'border-stone-300';
     const textColor = isDarkTheme ? 'text-neutral-100' : 'text-stone-900';
     const hoverTextColor = isDarkTheme ? 'group-hover:text-orange-500' : 'group-hover:text-teal-700';
-    const iconBg = isDarkTheme ? 'bg-neutral-700/90 hover:bg-neutral-700 text-neutral-300' : 'bg-white/90 hover:bg-white text-stone-700';
-    const favoriteIconBg = isFavorite 
-        ? (isDarkTheme ? 'bg-orange-600/20 text-orange-500' : 'bg-teal-100 text-teal-700')
-        : iconBg;
+    // Фон одинаковый для избранного и не избранного на обеих темах, чтобы красное сердце было лучше видно
+    const iconBg = isDarkTheme ? 'bg-white/80 hover:bg-white/90' : 'bg-white/80 hover:bg-white/90';
+    const favoriteIconBg = iconBg;
+
+    // Функция для выполнения API запроса
+    const performFavoriteToggle = async (wasFavorite) => {
+        if (wasFavorite) {
+            // Было в избранном, теперь удаляем
+            await favoritesAPI.removeFromFavorites(id);
+        } else {
+            // Не было в избранном, теперь добавляем
+            await favoritesAPI.addToFavorites(id);
+        }
+    };
+
+    // Проверяем, можно ли добавлять в избранное (только ACTIVE объявления)
+    const canAddToFavorites = !status || status === 'ACTIVE';
 
     const handleFavoriteClick = async (e) => {
         e.stopPropagation();
@@ -39,25 +82,36 @@ export function ListingCard({
             return;
         }
 
+        // Если объявление не активное, нельзя добавлять в избранное
+        if (!canAddToFavorites && !isFavorite) {
+            return;
+        }
+
         if (isToggling) return;
         
+        // Оптимистичное обновление - сразу меняем состояние для мгновенной перерисовки
+        const wasFavorite = isFavorite;
+        const newFavoriteState = !wasFavorite;
+        setHasUserInteracted(true); // Помечаем, что пользователь взаимодействовал
+        setIsFavorite(newFavoriteState);
         setIsToggling(true);
-        try {
-            if (isFavorite) {
-                await favoritesAPI.removeFromFavorites(id);
-                setIsFavorite(false);
-            } else {
-                await favoritesAPI.addToFavorites(id);
-                setIsFavorite(true);
-            }
             
-            // Вызываем callback, если он передан
+        // Если передан callback, вызываем его ДО API запроса для оптимистичного обновления родительского компонента
+        // Это нужно для всех страниц (избранное, объявления, профиль, главная), чтобы состояние обновлялось мгновенно
             if (onFavoriteToggle) {
                 onFavoriteToggle(e);
             }
+        
+        try {
+            await performFavoriteToggle(wasFavorite);
         } catch (error) {
             console.error('Ошибка при изменении избранного:', error);
-            // Можно показать уведомление об ошибке
+            // Откатываем изменение при ошибке
+            setIsFavorite(wasFavorite);
+            setHasUserInteracted(false); // Сбрасываем флаг при ошибке, чтобы можно было синхронизировать
+            // Если callback был вызван до запроса и произошла ошибка,
+            // родительский компонент должен сам обработать откат (например, перезагрузить список)
+            // Мы не вызываем callback повторно, чтобы не создавать двойной откат
         } finally {
             setIsToggling(false);
         }
@@ -70,34 +124,56 @@ export function ListingCard({
         >
             <div className={`relative aspect-[4/3] overflow-hidden ${isDarkTheme ? 'bg-neutral-900' : 'bg-stone-200'}`}>
                 <ImageWithFallback
-                    src={image}
+                    src={currentImage}
                     alt={title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
+                
+                {/* Нумерация в верхнем левом углу */}
+                {allImages.length > 1 && (
+                    <div className={`absolute top-3 left-3 z-10 px-2 py-1 rounded-full ${isDarkTheme ? 'bg-neutral-800/80' : 'bg-white/80'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} text-xs font-medium shadow-lg`}>
+                        {currentImageIndex + 1} / {allImages.length}
+                    </div>
+                )}
+                
+                {/* Кнопка избранного в правом верхнем углу */}
                 {tokenStorage.isAuthenticated() && (
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`absolute top-3 right-3 ${favoriteIconBg} h-8 w-8 rounded-full transition-colors ${isToggling ? 'opacity-50' : ''}`}
+                        className={`absolute top-3 right-3 z-10 ${favoriteIconBg} h-8 w-8 rounded-full transition-all duration-200 ${isToggling ? 'opacity-50' : ''} ${!canAddToFavorites && !isFavorite ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
                         onClick={handleFavoriteClick}
-                        disabled={isToggling}
+                        disabled={isToggling || (!canAddToFavorites && !isFavorite)}
+                        title={!canAddToFavorites && !isFavorite ? 'В избранное можно добавлять только активные объявления' : (isFavorite ? 'Удалить из избранного' : 'Добавить в избранное')}
                     >
-                        <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+                        <Heart 
+                            className={`h-4 w-4 transition-all duration-200 ${
+                                isFavorite 
+                                    ? 'fill-current text-red-600 scale-110' 
+                                    : `stroke-2 ${isDarkTheme ? 'stroke-neutral-100' : 'stroke-black'} fill-none hover:scale-110`
+                            }`} 
+                        />
                     </Button>
                 )}
-                {(isNew || isFeatured) && (
-                    <div className="absolute top-3 left-3 flex gap-2">
-                        {isNew && (
-                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">
-                                Новое
-                            </Badge>
-                        )}
-                        {isFeatured && (
-                            <Badge className={`${isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700'} text-white border-0`}>
-                                VIP
-                            </Badge>
-                        )}
-                    </div>
+                
+                {/* Стрелки навигации - всегда видны */}
+                {allImages.length > 1 && (
+                    <>
+                        <button
+                            onClick={handlePreviousImage}
+                            className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full ${isDarkTheme ? 'bg-neutral-800/80 hover:bg-neutral-700/90' : 'bg-white/80 hover:bg-white/90'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} transition-all shadow-lg`}
+                            aria-label="Предыдущее изображение"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <button
+                            onClick={handleNextImage}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full ${isDarkTheme ? 'bg-neutral-800/80 hover:bg-neutral-700/90' : 'bg-white/80 hover:bg-white/90'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} transition-all shadow-lg`}
+                            aria-label="Следующее изображение"
+                        >
+                            <ChevronRight className="h-5 w-5" />
+                        </button>
+                    </>
                 )}
             </div>
 

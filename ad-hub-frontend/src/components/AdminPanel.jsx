@@ -17,6 +17,7 @@ export function AdminPanel({
     onNavigate,
     initialTab = 'users',
     isAdmin = true, // По умолчанию true, так как это панель администратора, но должно передаваться из App.jsx
+    isModerator = false
 }) {
     // Логируем для отладки
     console.log('[AdminPanel] Рендер - isAdmin:', isAdmin, 'isAuthenticated:', isAuthenticated);
@@ -93,6 +94,7 @@ export function AdminPanel({
                     currentPage="admin"
                     onNavigate={onNavigate}
                     isAdmin={isAdmin}
+                    isModerator={isModerator}
                 />
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <p className={textMuted}>Загрузка...</p>
@@ -116,6 +118,7 @@ export function AdminPanel({
                     currentPage="admin"
                     onNavigate={onNavigate}
                     isAdmin={isAdmin}
+                    isModerator={isModerator}
                 />
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <div className={`${cardBg} rounded-xl border ${borderColor} p-8 max-w-md text-center`}>

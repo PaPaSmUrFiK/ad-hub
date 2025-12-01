@@ -14,7 +14,9 @@ export function FavoritesPage({
                                   isAuthenticated,
                                   onLoginClick,
                                   onLogout,
-                                  onNavigate
+                                  onNavigate,
+                                  isAdmin = false,
+                                  isModerator = false
                               }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const textColor = isDarkTheme ? 'text-neutral-100' : 'text-stone-900';
@@ -66,16 +68,14 @@ export function FavoritesPage({
         }
     };
 
-    const handleRemoveFromFavorites = async (adId, e) => {
-        e.stopPropagation();
-        try {
-            await favoritesAPI.removeFromFavorites(adId);
-            // Удаляем из локального состояния
+    // Функция для удаления объявления из избранного (вызывается из ListingCard ДО API запроса)
+    const handleRemoveFromFavorites = (adId, e) => {
+        e?.stopPropagation();
+        // Оптимистичное обновление - сразу удаляем из списка для мгновенной перерисовки
+        // API запрос выполняется в ListingCard
+        // Если произойдет ошибка, ListingCard откатит свое состояние, но мы не восстанавливаем здесь
+        // чтобы избежать конфликтов - пользователь может попробовать снова
             setFavorites(prev => prev.filter(f => f.adId !== adId));
-        } catch (err) {
-            console.error('Ошибка при удалении из избранного:', err);
-            setError(err.message || 'Не удалось удалить из избранного');
-        }
     };
 
     // Преобразуем данные избранного для ListingCard
@@ -110,6 +110,8 @@ export function FavoritesPage({
                 onToggleTheme={onToggleTheme}
                 currentPage="favorites"
                 onNavigate={onNavigate}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -174,7 +176,9 @@ export function FavoritesPage({
                                     {...cardData}
                                     isDarkTheme={isDarkTheme}
                                     onClick={() => onViewListing && onViewListing(favorite.adId)}
-                                    onFavoriteToggle={(e) => handleRemoveFromFavorites(favorite.adId, e)}
+                                    onFavoriteToggle={(e) => {
+                                        handleRemoveFromFavorites(favorite.adId, e);
+                                    }}
                                     isFavorite={true}
                                 />
                             );

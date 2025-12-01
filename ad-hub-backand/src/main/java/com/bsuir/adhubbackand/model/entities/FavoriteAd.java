@@ -1,7 +1,6 @@
 package com.bsuir.adhubbackand.model.entities;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -34,11 +33,5 @@ public class FavoriteAd {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-    }
-
-    // Бизнес-валидация: пользователь не может добавить свое объявление в избранное
-    @AssertTrue(message = "Пользователь не может добавить свое объявление в избранное")
-    private boolean isNotOwnAd() {
-        return user == null || ad == null || !user.getId().equals(ad.getUser().getId());
     }
 }

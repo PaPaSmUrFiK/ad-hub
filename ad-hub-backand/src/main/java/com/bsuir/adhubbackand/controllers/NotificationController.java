@@ -1,15 +1,21 @@
 package com.bsuir.adhubbackand.controllers;
 
+import com.bsuir.adhubbackand.model.dto.request.notification.CreateNotificationRequest;
 import com.bsuir.adhubbackand.model.dto.response.NotificationResponse;
+import com.bsuir.adhubbackand.model.dto.response.NotificationTypeResponse;
+import com.bsuir.adhubbackand.model.entities.NotificationType;
 import com.bsuir.adhubbackand.security.UserDetailsImpl;
 import com.bsuir.adhubbackand.services.NotificationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -63,6 +69,29 @@ public class NotificationController {
     ) {
         notificationService.deleteNotification(id, userDetails.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/types")
+    public ResponseEntity<List<NotificationTypeResponse>> getNotificationTypes() {
+        List<NotificationType> types = notificationService.getAllNotificationTypes();
+        List<NotificationTypeResponse> response = types.stream()
+                .map(type -> new NotificationTypeResponse(
+                        type.getId(),
+                        type.getName(),
+                        type.getTemplate(),
+                        type.getDescription()
+                ))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
+    public ResponseEntity<NotificationResponse> createNotification(
+            @Valid @RequestBody CreateNotificationRequest request
+    ) {
+        NotificationResponse response = notificationService.createNotification(request);
+        return ResponseEntity.ok(response);
     }
 }
 

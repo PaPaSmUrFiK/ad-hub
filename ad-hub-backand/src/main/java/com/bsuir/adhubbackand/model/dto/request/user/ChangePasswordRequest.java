@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record ChangePasswordRequest(
-        @NotBlank(message = "Текущий пароль обязателен")
+        // Текущий пароль опционален (для администраторов или если пользователь уже авторизован)
         String currentPassword,
 
         @NotBlank(message = "Новый пароль обязателен")

@@ -1,59 +1,16 @@
-import { tokenStorage } from './auth.js';
+import { fetchWithAuth } from './interceptor';
 
-const API_BASE_URL = 'http://localhost:8080';
-
-// Базовый fetch с обработкой ошибок (копия из auth.js для админских запросов)
+// Базовый fetch с автоматическим обновлением токенов
 async function fetchAPI(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const config = {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    };
-
-    // Добавляем токен авторизации
-    const accessToken = tokenStorage.getAccessToken();
-    if (accessToken) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
     try {
-        const response = await fetch(url, config);
-        
-        if (!response.ok) {
-            let errorData;
-            try {
-                errorData = await response.json();
-            } catch {
-                errorData = { message: `Ошибка сервера: ${response.status} ${response.statusText}` };
-            }
-            
-            if (response.status === 400 && errorData.message) {
-                throw new Error(errorData.message);
-            }
-            
-            if (response.status === 401) {
-                throw new Error(errorData.message || 'Необходима авторизация');
-            }
-            
-            if (response.status === 403) {
-                throw new Error(errorData.message || 'Доступ запрещен');
-            }
-            
-            throw new Error(errorData.message || `Ошибка: ${response.status}`);
-        }
-
-        // Для 204 No Content возвращаем null
-        if (response.status === 204) {
-            return null;
-        }
-
-        return await response.json();
+        return await fetchWithAuth(endpoint, options);
     } catch (error) {
         if (error instanceof TypeError && error.message.includes('fetch')) {
             throw new Error('Не удалось подключиться к серверу. Проверьте, что backend запущен.');
+        }
+        // Обработка 403 для админских запросов
+        if (error.message && error.message.includes('Доступ запрещен')) {
+            throw error;
         }
         throw error;
     }
@@ -127,6 +84,36 @@ export const adminAPI = {
     // Статистика поиска
     getSearchStatistics: async () => {
         return await fetchAPI('/api/admin/statistics/search');
+    },
+
+    // Модерация объявлений
+    getPendingAds: async (page = 1, size = 20) => {
+        const params = new URLSearchParams();
+        if (page) params.append('page', page);
+        if (size) params.append('size', size);
+        
+        const queryString = params.toString();
+        const endpoint = `/api/admin/ads/pending${queryString ? `?${queryString}` : ''}`;
+        
+        return await fetchAPI(endpoint);
+    },
+
+    approveAd: async (adId) => {
+        return await fetchAPI(`/api/admin/ads/${adId}/approve`, {
+            method: 'POST',
+        });
+    },
+
+    rejectAd: async (adId) => {
+        return await fetchAPI(`/api/admin/ads/${adId}/reject`, {
+            method: 'POST',
+        });
+    },
+
+    sendForRevision: async (adId) => {
+        return await fetchAPI(`/api/admin/ads/${adId}/revision`, {
+            method: 'POST',
+        });
     },
 };
 

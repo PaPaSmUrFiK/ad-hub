@@ -35,35 +35,52 @@ public class AdMediaService {
 
     @Transactional
     public AdMediaResponse uploadMedia(Long adId, Long userId, MultipartFile file) {
+        log.info("Начало загрузки медиафайла для объявления ID={}, пользователь ID={}, файл: {}", 
+                adId, userId, file.getOriginalFilename());
+        
         Ad ad = adRepository.findById(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
 
         // Проверяем, что пользователь является владельцем объявления
         if (!ad.getUser().getId().equals(userId)) {
+            log.warn("Попытка загрузки медиафайла пользователем {} для объявления {}, принадлежащего пользователю {}", 
+                    userId, adId, ad.getUser().getId());
             throw new AccessDeniedException("Нет доступа к загрузке медиафайлов для этого объявления");
         }
 
         validateImageFile(file);
+        log.info("Валидация файла прошла успешно, размер: {} байт", file.getSize());
 
         // Генерируем имя файла
         String fileName = generateMediaFileName(file);
+        log.info("Сгенерировано имя файла: {}", fileName);
+        
         String storedFileName = fileStorageService.uploadFile(file, FileStorageService.ADS_MEDIA_FOLDER, fileName);
+        log.info("Файл загружен в хранилище: {}", storedFileName);
+        
         String fileUrl = fileStorageService.getFileUrl(storedFileName);
+        log.info("Получен URL файла: {}", fileUrl);
 
         if (fileUrl == null) {
+            log.error("Не удалось получить URL для файла: {}", storedFileName);
             throw new FileUploadException("Не удалось получить URL загруженного файла");
         }
 
-        // Определяем порядок отображения
-        long mediaCount = adMediaRepository.countByAdId(adId);
-        Integer displayOrder = (int) mediaCount;
+        // Определяем порядок отображения - используем синхронизацию для избежания race condition
+        // при параллельной загрузке нескольких файлов
+        Integer displayOrder;
+        Boolean isPrimary;
+        synchronized (this) {
+            long mediaCount = adMediaRepository.countByAdId(adId);
+            displayOrder = (int) mediaCount;
 
-        // Если это первый файл, делаем его основным
-        Boolean isPrimary = mediaCount == 0;
+            // Если это первый файл, делаем его основным
+            isPrimary = mediaCount == 0;
 
-        // Если делаем основным, снимаем флаг с других
-        if (isPrimary) {
-            adMediaRepository.clearPrimaryMediaByAdId(adId);
+            // Если делаем основным, снимаем флаг с других
+            if (isPrimary) {
+                adMediaRepository.clearPrimaryMediaByAdId(adId);
+            }
         }
 
         AdMedia media = AdMedia.builder()
@@ -75,7 +92,18 @@ public class AdMediaService {
                 .build();
 
         AdMedia savedMedia = adMediaRepository.save(media);
-        log.info("Медиафайл загружен для объявления ID={}: mediaId={}", adId, savedMedia.getId());
+        
+        // После сохранения пересчитываем порядок для всех медиафайлов объявления
+        // чтобы гарантировать правильную последовательность
+        List<AdMedia> allMedia = adMediaRepository.findByAdIdOrderByDisplayOrderAsc(adId);
+        for (int i = 0; i < allMedia.size(); i++) {
+            if (!allMedia.get(i).getDisplayOrder().equals(i)) {
+                allMedia.get(i).setDisplayOrder(i);
+                adMediaRepository.save(allMedia.get(i));
+            }
+        }
+        log.info("Медиафайл успешно сохранен в БД для объявления ID={}: mediaId={}, fileUrl={}", 
+                adId, savedMedia.getId(), savedMedia.getFileUrl());
 
         return mapToResponse(savedMedia);
     }
@@ -99,12 +127,15 @@ public class AdMediaService {
         }
 
         // Удаляем файл из MinIO
-        String fileName = extractFileNameFromUrl(media.getFileUrl());
-        if (fileName != null) {
-            String fullPath = fileName.startsWith(FileStorageService.ADS_MEDIA_FOLDER + "/")
-                    ? fileName
-                    : FileStorageService.ADS_MEDIA_FOLDER + "/" + fileName;
-            fileStorageService.deleteFile(fullPath);
+        // FileStorageService теперь возвращает путь в формате "bucketName/filename"
+        // или мы можем извлечь из URL и передать напрямую
+        String fileUrl = media.getFileUrl();
+        if (fileUrl != null) {
+            // Извлекаем путь из URL (убираем параметры запроса)
+            String filePath = extractFilePathFromUrl(fileUrl);
+            if (filePath != null) {
+                fileStorageService.deleteFile(filePath);
+            }
         }
 
         // Если это был основной файл, делаем основной следующий по порядку
@@ -128,12 +159,22 @@ public class AdMediaService {
         }
 
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new FileUploadException("Размер файла не должен превышать 10MB");
+            throw new FileUploadException(String.format(
+                "Размер файла '%s' превышает максимально допустимый размер 10MB. Текущий размер: %.2f MB",
+                file.getOriginalFilename(),
+                file.getSize() / (1024.0 * 1024.0)
+            ));
         }
 
         String contentType = file.getContentType();
+        String fileName = file.getOriginalFilename();
+        
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new FileUploadException("Допустимые форматы: JPEG, PNG, GIF, WebP");
+            throw new FileUploadException(String.format(
+                "Файл '%s' имеет неподдерживаемый формат. Допустимые форматы: JPEG, JPG, PNG, GIF, WebP. Получен формат: %s",
+                fileName != null ? fileName : "неизвестный файл",
+                contentType != null ? contentType : "не определен"
+            ));
         }
     }
 
@@ -150,15 +191,48 @@ public class AdMediaService {
         return fileName.substring(fileName.lastIndexOf("."));
     }
 
-    private String extractFileNameFromUrl(String url) {
+    /**
+     * Извлекает путь к файлу из presigned URL
+     * URL может содержать bucket name в пути или параметрах
+     */
+    private String extractFilePathFromUrl(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
         try {
-            String[] parts = url.split("/");
-            String fileNameWithParams = parts[parts.length - 1];
-            return fileNameWithParams.split("\\?")[0];
+            // Presigned URL обычно имеет формат: http://host:port/bucketName/filename?params
+            // Или может быть в другом формате
+            // Пытаемся извлечь bucket и filename из URL
+            java.net.URI uri = new java.net.URI(url);
+            java.net.URL urlObj = uri.toURL();
+            String path = urlObj.getPath();
+            
+            // Убираем первый слэш если есть
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            
+            // Убираем параметры запроса
+            String query = urlObj.getQuery();
+            if (query != null && path.contains("?")) {
+                path = path.split("\\?")[0];
+            }
+            
+            // Если путь содержит bucket name (adhub-ads-media или adhub-avatars), возвращаем как есть
+            // Иначе пытаемся определить по имени файла
+            if (path.contains("adhub-")) {
+                return path; // Уже содержит bucket name
+            } else {
+                // Для обратной совместимости: если файл начинается с "ad_", это медиа объявления
+                String fileName = path.contains("/") ? path.substring(path.lastIndexOf("/") + 1) : path;
+                if (fileName.startsWith("ad_")) {
+                    // Возвращаем путь с bucket name для медиа объявлений
+                    return "adhub-ads-media/" + fileName;
+                }
+                return path;
+            }
         } catch (Exception e) {
+            log.warn("Не удалось извлечь путь из URL: {}", url, e);
             return null;
         }
     }

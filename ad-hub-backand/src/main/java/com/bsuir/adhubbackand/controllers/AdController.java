@@ -60,9 +60,11 @@ public class AdController {
             @RequestParam(required = false) String location,
             @RequestParam(required = false) SortBy sortBy,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
+            @RequestParam(required = false) Integer size,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
     ) {
-        AdListResponse ads = adService.searchAds(query, categoryId, minPrice, maxPrice, location, sortBy, page, size);
+        Long userId = userDetails != null ? userDetails.getId() : null;
+        AdListResponse ads = adService.searchAds(query, categoryId, minPrice, maxPrice, location, sortBy, page, size, userId);
         return ResponseEntity.ok(ads);
     }
 
@@ -78,8 +80,11 @@ public class AdController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AdResponse> getAdById(@PathVariable Long id) {
-        AdResponse ad = adService.getAdById(id);
+    public ResponseEntity<AdResponse> getAdById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Long currentUserId = userDetails != null ? userDetails.getId() : null;
+        AdResponse ad = adService.getAdById(id, currentUserId);
         return ResponseEntity.ok(ad);
     }
 
@@ -116,6 +121,30 @@ public class AdController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         adMediaService.deleteMedia(id, mediaId, userDetails.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/draft")
+    public ResponseEntity<AdResponse> saveAsDraft(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        AdResponse ad = adService.saveAsDraft(id, userDetails.getId());
+        return ResponseEntity.ok(ad);
+    }
+
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<AdResponse> archiveAd(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        AdResponse ad = adService.archiveAd(id, userDetails.getId());
+        return ResponseEntity.ok(ad);
+    }
+
+    @PostMapping("/{id}/publish")
+    public ResponseEntity<AdResponse> publishAd(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        AdResponse ad = adService.publishAd(id, userDetails.getId());
+        return ResponseEntity.ok(ad);
     }
 }
 

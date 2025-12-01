@@ -41,6 +41,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(jwt) && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 log.debug("Извлечение username из JWT токена");
+                
+                // Проверяем, не истек ли токен, перед попыткой извлечения username
+                if (jwtService.isTokenExpired(jwt)) {
+                    log.warn("JWT токен истек");
+                    // Не устанавливаем аутентификацию, Spring Security вернет 401
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+                
                 String username = jwtService.extractUsername(jwt);
 
                 if (username != null && !username.isEmpty()) {
@@ -67,6 +76,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             } catch (Exception e) {
                 log.error("Ошибка установки аутентификации из JWT токена: {}", e.getMessage());
+                // При ошибке (например, истекший токен) не устанавливаем аутентификацию
+                // Spring Security вернет 401 для защищенных эндпоинтов
             }
         }
 

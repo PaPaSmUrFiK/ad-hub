@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Heart, Share2, MapPin, User, Phone, Mail, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Heart, MapPin, User, Phone, Mail, Clock, Loader2, AlertCircle, Trash2, ChevronLeft, ChevronRight, Archive, FileText, CheckCircle2, Upload } from 'lucide-react';
 import { Button } from './ui/button';
 import { Header } from './Header';
 import { Footer } from './Footer';
@@ -7,6 +7,7 @@ import { ImageWithFallback } from './ui/ImageWithFallback';
 import { Badge } from './ui/badge';
 import { adsAPI } from '../api/ads';
 import { favoritesAPI } from '../api/favorites';
+import { userAPI } from '../api/user';
 import { getPrimaryImage, formatPrice } from '../utils/categoryUtils';
 
 export function ListingDetailPage({
@@ -17,12 +18,26 @@ export function ListingDetailPage({
                                       isAuthenticated,
                                       onLoginClick,
                                       onLogout,
-                                      onNavigate
+                                      onNavigate,
+                                      isAdmin = false,
+                                      isModerator = false
                                   }) {
     const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isFavorite, setIsFavorite] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [isArchiving, setIsArchiving] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
+    const [phoneCopied, setPhoneCopied] = useState(false);
+
+    // Сбрасываем индекс изображения при изменении listingId
+    useEffect(() => {
+        setCurrentImageIndex(0);
+    }, [listingId]);
 
     // Загружаем данные объявления при монтировании
     useEffect(() => {
@@ -31,13 +46,78 @@ export function ListingDetailPage({
         }
     }, [listingId, isAuthenticated]);
 
+    // Загружаем ID текущего пользователя
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadCurrentUser();
+        } else {
+            setCurrentUserId(null);
+        }
+    }, [isAuthenticated]);
+
+    // Обработка нажатий клавиш для навигации по изображениям
+    // Должен быть до условных возвратов, чтобы соблюдать правила хуков
+    useEffect(() => {
+        if (!listing || !listing.mediaFiles || listing.mediaFiles.length <= 1) return;
+        
+        const allImages = listing.mediaFiles.map(m => m.fileUrl) || [];
+        if (allImages.length <= 1) return;
+        
+        // Убеждаемся, что индекс в пределах массива
+        setCurrentImageIndex((prev) => {
+            if (prev >= allImages.length) return 0;
+            if (prev < 0) return 0;
+            return prev;
+        });
+        
+        const handleKeyPress = (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : allImages.length - 1));
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                setCurrentImageIndex((prev) => (prev < allImages.length - 1 ? prev + 1 : 0));
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [listing]);
+
+    const loadCurrentUser = async () => {
+        try {
+            const userData = await userAPI.getMe();
+            setCurrentUserId(userData.id);
+        } catch (err) {
+            console.error('Ошибка при загрузке текущего пользователя:', err);
+        }
+    };
+
     const loadListing = async () => {
         try {
             setLoading(true);
             setError('');
             
             const adData = await adsAPI.getAdById(listingId);
-            setListing(adData);
+            // Преобразуем данные для совместимости с фронтендом
+            const transformedData = {
+                ...adData,
+                user: {
+                    id: adData.userId,
+                    username: adData.userUsername,
+                    email: adData.userEmail,
+                    phone: adData.userPhone,
+                    avatarUrl: adData.userAvatarUrl,
+                    firstName: adData.userFirstName,
+                    lastName: adData.userLastName,
+                }
+            };
+            setListing(transformedData);
+            // Сбрасываем индекс изображения при загрузке нового объявления
+            setCurrentImageIndex(0);
+            
+            // Обновляем isOnModeration и isOwner после загрузки
+            // Они будут пересчитаны в рендере
             
             // Проверяем, в избранном ли объявление (если пользователь авторизован)
             if (isAuthenticated) {
@@ -57,22 +137,120 @@ export function ListingDetailPage({
         }
     };
 
+    const handleDeleteAd = async () => {
+        if (!window.confirm('Вы уверены, что хотите удалить это объявление?')) {
+            return;
+        }
+
+        try {
+            setIsDeleting(true);
+            await adsAPI.deleteAd(listingId);
+            if (onNavigate) {
+                onNavigate('profile');
+            }
+        } catch (err) {
+            console.error('Ошибка при удалении объявления:', err);
+            setError(err.message || 'Не удалось удалить объявление');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleSaveAsDraft = async () => {
+        try {
+            setIsSavingDraft(true);
+            const updatedAd = await adsAPI.saveAsDraft(listingId);
+            // Преобразуем данные для совместимости с фронтендом
+            const transformedData = {
+                ...updatedAd,
+                user: listing.user
+            };
+            setListing(transformedData);
+            alert('Объявление сохранено как черновик');
+            // Перезагружаем страницу для обновления данных
+            if (onNavigate) {
+                onNavigate('profile');
+            }
+        } catch (err) {
+            console.error('Ошибка при сохранении черновика:', err);
+            setError(err.message || 'Не удалось сохранить черновик');
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
+
+    const handleArchiveAd = async () => {
+        if (!window.confirm('Вы уверены, что хотите отправить это объявление в архив?')) {
+            return;
+        }
+
+        try {
+            setIsArchiving(true);
+            setError('');
+            const updatedAd = await adsAPI.archiveAd(listingId);
+            // Преобразуем данные для совместимости с фронтендом
+            const transformedData = {
+                ...updatedAd,
+                user: listing.user
+            };
+            setListing(transformedData);
+            alert('Объявление отправлено в архив');
+        } catch (err) {
+            console.error('Ошибка при архивировании объявления:', err);
+            setError(err.message || 'Не удалось отправить объявление в архив');
+        } finally {
+            setIsArchiving(false);
+        }
+    };
+
+    const handlePublishAd = async () => {
+        if (!window.confirm('Вы уверены, что хотите опубликовать это объявление? Оно будет отправлено на модерацию.')) {
+            return;
+        }
+
+        try {
+            setIsPublishing(true);
+            setError('');
+            const updatedAd = await adsAPI.publishAd(listingId);
+            // Преобразуем данные для совместимости с фронтендом
+            const transformedData = {
+                ...updatedAd,
+                user: listing.user
+            };
+            setListing(transformedData);
+            alert('Объявление отправлено на модерацию');
+        } catch (err) {
+            console.error('Ошибка при публикации объявления:', err);
+            setError(err.message || 'Не удалось опубликовать объявление');
+        } finally {
+            setIsPublishing(false);
+        }
+    };
+
     const handleToggleFavorite = async () => {
         if (!isAuthenticated) {
             onLoginClick?.();
             return;
         }
 
+        // Оптимистичное обновление - сразу меняем состояние для мгновенной перерисовки
+        const wasFavorite = isFavorite;
+        const newFavoriteState = !wasFavorite;
+        setIsFavorite(newFavoriteState);
+
         try {
-            if (isFavorite) {
+            // Используем старое значение для определения действия
+            if (wasFavorite) {
+                // Было в избранном, теперь удаляем
                 await favoritesAPI.removeFromFavorites(listingId);
-                setIsFavorite(false);
             } else {
+                // Не было в избранном, теперь добавляем
                 await favoritesAPI.addToFavorites(listingId);
-                setIsFavorite(true);
             }
         } catch (err) {
             console.error('Ошибка при изменении избранного:', err);
+            // Откатываем изменение при ошибке
+            setIsFavorite(!newFavoriteState);
             setError(err.message || 'Не удалось изменить статус избранного');
         }
     };
@@ -89,6 +267,37 @@ export function ListingDetailPage({
         if (diffDays < 7) return `${diffDays} дня назад`;
         if (diffDays < 30) return `${Math.floor(diffDays / 7)} недели назад`;
         return date.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' });
+    };
+
+    const handleCopyPhone = async (phoneNumber) => {
+        try {
+            // Очищаем номер от форматирования для копирования
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            await navigator.clipboard.writeText(cleanPhone);
+            setPhoneCopied(true);
+            setTimeout(() => {
+                setPhoneCopied(false);
+            }, 2000);
+        } catch (err) {
+            console.error('Ошибка при копировании телефона:', err);
+            // Fallback для старых браузеров
+            const textArea = document.createElement('textarea');
+            textArea.value = phoneNumber.replace(/\D/g, '');
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setPhoneCopied(true);
+                setTimeout(() => {
+                    setPhoneCopied(false);
+                }, 2000);
+            } catch (e) {
+                alert('Не удалось скопировать номер телефона');
+            }
+            document.body.removeChild(textArea);
+        }
     };
 
     if (loading) {
@@ -122,7 +331,22 @@ export function ListingDetailPage({
 
     const primaryImage = getPrimaryImage(listing.mediaFiles);
     const allImages = listing.mediaFiles?.map(m => m.fileUrl) || [];
-    const isNew = listing.createdAt && new Date(listing.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const isOnModeration = listing.status === 'ON_MODERATION';
+    const isOwner = isAuthenticated && currentUserId === listing.user?.id;
+    
+    // Навигация по изображениям
+    const handlePreviousImage = () => {
+        setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : allImages.length - 1));
+    };
+    
+    const handleNextImage = () => {
+        setCurrentImageIndex((prev) => (prev < allImages.length - 1 ? prev + 1 : 0));
+    };
+    
+    // Определяем текущее изображение с fallback
+    const currentImage = allImages.length > 0 
+        ? (allImages[currentImageIndex] || allImages[0] || primaryImage)
+        : (primaryImage || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="500"%3E%3Crect fill="%23ddd" width="800" height="500"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="20" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E');
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -144,6 +368,8 @@ export function ListingDetailPage({
                 onToggleTheme={onToggleTheme}
                 currentPage="listing"
                 onNavigate={onNavigate}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -160,85 +386,80 @@ export function ListingDetailPage({
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* Images */}
+                        {/* Images Gallery */}
                         <div className={`${cardBg} rounded-xl border ${borderColor} overflow-hidden`}>
                             <div className={`relative aspect-[16/10] ${isDarkTheme ? 'bg-neutral-900' : 'bg-stone-200'}`}>
                                 <ImageWithFallback
-                                    src={primaryImage || 'https://via.placeholder.com/800x500?text=No+Image'}
+                                    src={currentImage}
                                     alt={listing.title}
                                     className="w-full h-full object-cover"
                                 />
-                                {(isNew || listing.viewCount > 100) && (
-                                    <div className="absolute top-4 left-4 flex gap-2">
-                                        {isNew && (
-                                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">
-                                                Новое
-                                            </Badge>
-                                        )}
-                                        {listing.viewCount > 100 && (
-                                            <Badge className={`${isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700'} text-white border-0`}>
-                                                VIP
-                                            </Badge>
-                                        )}
+                                
+                                {/* Нумерация изображений (вместо плашки "Новое") */}
+                                {allImages.length > 1 && (
+                                    <div className={`absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full ${isDarkTheme ? 'bg-neutral-800/80' : 'bg-white/80'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} text-sm font-medium shadow-lg`}>
+                                        {currentImageIndex + 1} / {allImages.length}
                                     </div>
                                 )}
+                                
+                                {/* Кнопка избранного в правом верхнем углу */}
+                                {isAuthenticated && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={`absolute top-4 right-4 z-10 h-10 w-10 rounded-full transition-all duration-200 shadow-lg hover:scale-110 active:scale-95 ${
+                                            // Фон одинаковый для избранного и не избранного на обеих темах, чтобы красное сердце было лучше видно
+                                            isDarkTheme ? 'bg-white/80 hover:bg-white/90' : 'bg-white/80 hover:bg-white/90'
+                                        }`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleFavorite();
+                                        }}
+                                        title={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                                    >
+                                        <Heart 
+                                            className={`h-5 w-5 transition-all duration-200 ${
+                                                isFavorite 
+                                                    ? 'fill-current text-red-600 scale-110' 
+                                                    : `stroke-2 ${isDarkTheme ? 'stroke-neutral-100' : 'stroke-black'} fill-none hover:scale-110`
+                                            }`} 
+                                        />
+                                    </Button>
+                                )}
+                                
+                                {/* Навигация стрелками (если больше 1 изображения) */}
+                                {allImages.length > 1 && (
+                                    <>
+                                        {/* Кнопка "Назад" */}
+                                        <button
+                                            onClick={handlePreviousImage}
+                                            className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full ${isDarkTheme ? 'bg-neutral-800/80 hover:bg-neutral-700/90' : 'bg-white/80 hover:bg-white/90'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} transition-all shadow-lg`}
+                                            aria-label="Предыдущее изображение"
+                                        >
+                                            <ChevronLeft className="h-6 w-6" />
+                                        </button>
+                                        
+                                        {/* Кнопка "Вперед" */}
+                                        <button
+                                            onClick={handleNextImage}
+                                            className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full ${isDarkTheme ? 'bg-neutral-800/80 hover:bg-neutral-700/90' : 'bg-white/80 hover:bg-white/90'} ${isDarkTheme ? 'text-neutral-100' : 'text-stone-900'} transition-all shadow-lg`}
+                                            aria-label="Следующее изображение"
+                                        >
+                                            <ChevronRight className="h-6 w-6" />
+                                        </button>
+                                    </>
+                                )}
                             </div>
-                            {/* Дополнительные изображения (если есть) */}
-                            {allImages.length > 1 && (
-                                <div className="grid grid-cols-4 gap-2 p-4">
-                                    {allImages.slice(1, 5).map((imageUrl, index) => (
-                                        <div key={index} className="aspect-square rounded-lg overflow-hidden">
-                                            <ImageWithFallback
-                                                src={imageUrl}
-                                                alt={`${listing.title} - фото ${index + 2}`}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            
                         </div>
 
                         {/* Details */}
                         <div className={`${cardBg} rounded-xl border ${borderColor} p-6`}>
-                            <div className="flex items-start justify-between mb-4">
-                                <div>
+                            <div className="mb-4">
                                     <h1 className={`${textColor} text-2xl font-bold mb-2`}>{listing.title}</h1>
                                     <div className={`flex items-center gap-2 ${textMuted}`}>
                                         <MapPin className="h-4 w-4" />
                                         <span>{listing.location}</span>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        className={`${borderColor} ${isFavorite ? (isDarkTheme ? 'text-red-400 border-red-600' : 'text-red-600 border-red-300') : ''}`}
-                                        onClick={handleToggleFavorite}
-                                        title={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-                                    >
-                                        <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
-                                    </Button>
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        className={borderColor}
-                                        onClick={() => {
-                                            if (navigator.share) {
-                                                navigator.share({
-                                                    title: listing.title,
-                                                    text: listing.description,
-                                                    url: window.location.href,
-                                                }).catch(() => {});
-                                            } else {
-                                                navigator.clipboard.writeText(window.location.href);
-                                                alert('Ссылка скопирована в буфер обмена');
-                                            }
-                                        }}
-                                        title="Поделиться"
-                                    >
-                                        <Share2 className="h-4 w-4" />
-                                    </Button>
                                 </div>
                             </div>
 
@@ -306,18 +527,137 @@ export function ListingDetailPage({
                                     </div>
                                 </div>
 
-                                {listing.user.phone && (
+                                {/* Контакты */}
+                                {(listing.user.phone || listing.user.email) && (
                                     <div className="space-y-3 mb-4">
-                                        <Button className={`w-full ${buttonBg} text-white`}>
-                                            <Phone className="h-4 w-4 mr-2" />
-                                            {listing.user.phone}
-                                        </Button>
-                                        {listing.user.email && (
-                                            <Button variant="outline" className={`w-full ${borderColor}`}>
-                                                <Mail className="h-4 w-4 mr-2" />
-                                                Написать сообщение
+                                        {listing.user.phone && (
+                                            <Button 
+                                                className={`w-full ${phoneCopied ? (isDarkTheme ? 'bg-green-600 hover:bg-green-700' : 'bg-green-600 hover:bg-green-700') : buttonBg} text-white flex items-center justify-center transition-colors`}
+                                                onClick={() => {
+                                                    if (listing.user.phone) {
+                                                        handleCopyPhone(listing.user.phone);
+                                                    }
+                                                }}
+                                            >
+                                                {phoneCopied ? (
+                                                    <>
+                                                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                        Скопировано!
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Phone className="h-4 w-4 mr-2" />
+                                                        {listing.user.phone}
+                                                    </>
+                                                )}
                                             </Button>
                                         )}
+                                        {listing.user.email && (
+                                            <Button 
+                                                variant="outline" 
+                                                className={`w-full ${borderColor} flex items-center justify-center`}
+                                                onClick={() => {
+                                                    if (listing.user.email) {
+                                                        window.location.href = `mailto:${listing.user.email}`;
+                                                    }
+                                                }}
+                                            >
+                                                <Mail className="h-4 w-4 mr-2" />
+                                                {listing.user.email}
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Кнопки для владельца */}
+                                {isOwner && (
+                                    <div className="space-y-3">
+                                        {/* Кнопки управления: черновик, архив и публикация */}
+                                        <div className="space-y-2">
+                                            {listing.status === 'ARCHIVED' ? (
+                                                <Button 
+                                                    variant="outline" 
+                                                    className={`w-full ${buttonBg} text-white flex items-center justify-center`}
+                                                    onClick={handlePublishAd}
+                                                    disabled={isPublishing}
+                                                >
+                                                    {isPublishing ? (
+                                                        <>
+                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                            Публикация...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="h-4 w-4 mr-2" />
+                                                            Опубликовать
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            ) : (
+                                                <>
+                                                    {listing.status !== 'DRAFT' && listing.status !== 'ARCHIVED' && listing.status !== 'DELETED' && (
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={`w-full ${borderColor} flex items-center justify-center`}
+                                                            onClick={handleSaveAsDraft}
+                                                            disabled={isSavingDraft}
+                                                        >
+                                                            {isSavingDraft ? (
+                                                                <>
+                                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                    Сохранение...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <FileText className="h-4 w-4 mr-2" />
+                                                                    Сохранить черновик
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    )}
+                                                    {listing.status !== 'ARCHIVED' && listing.status !== 'DELETED' && (
+                                                        <Button 
+                                                            variant="outline" 
+                                                            className={`w-full ${borderColor} flex items-center justify-center`}
+                                                            onClick={handleArchiveAd}
+                                                            disabled={isArchiving}
+                                                        >
+                                                            {isArchiving ? (
+                                                                <>
+                                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                    Архивирование...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Archive className="h-4 w-4 mr-2" />
+                                                                    Отправить в архив
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Кнопка удаления (красная, внизу) */}
+                                        <Button 
+                                            variant="outline" 
+                                            className={`w-full ${isDarkTheme ? 'text-red-400 border-red-600 hover:bg-red-900/20' : 'text-red-600 border-red-300 hover:bg-red-50'} flex items-center justify-center`}
+                                            onClick={handleDeleteAd}
+                                            disabled={isDeleting}
+                                        >
+                                            {isDeleting ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Удаление...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                    Удалить объявление
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
                                 )}
 

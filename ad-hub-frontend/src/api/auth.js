@@ -26,10 +26,14 @@ async function fetchAPI(endpoint, options = {}) {
         },
     };
 
-    // Добавляем токен авторизации, если он есть
-    const accessToken = tokenStorage.getAccessToken();
-    if (accessToken) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
+    // Добавляем токен авторизации только для защищенных эндпоинтов
+    // Для публичных эндпоинтов (/auth/login, /auth/register) не добавляем токен
+    const isPublicEndpoint = endpoint.startsWith('/auth/login') || endpoint.startsWith('/auth/register');
+    if (!isPublicEndpoint) {
+        const accessToken = tokenStorage.getAccessToken();
+        if (accessToken) {
+            config.headers['Authorization'] = `Bearer ${accessToken}`;
+        }
     }
 
     try {

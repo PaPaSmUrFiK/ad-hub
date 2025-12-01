@@ -1,79 +1,15 @@
-import { tokenStorage } from './auth';
-import { retryRequest } from '../utils/retry';
+import { fetchWithAuth } from './interceptor';
 
-const API_BASE_URL = 'http://localhost:8080';
-
-// Определяем, какие запросы являются критичными и требуют retry
-const CRITICAL_ENDPOINTS = [
-    '/api/ads/search',
-    '/api/ads',
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/users/me',
-    '/api/users/profile',
-];
-
-// Базовый fetch с обработкой ошибок
-async function fetchAPI(endpoint, options = {}, useRetry = false) {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const config = {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    };
-
-    // Добавляем токен авторизации, если он есть
-    const accessToken = tokenStorage.getAccessToken();
-    if (accessToken) {
-        config.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
-    // Определяем, нужен ли retry для этого запроса
-    const isCritical = useRetry || CRITICAL_ENDPOINTS.some(criticalPath => endpoint.includes(criticalPath));
-    
-    const fetchFunction = async () => {
-        try {
-            const response = await fetch(url, config);
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
-                const error = new Error(errorData.message || `Ошибка: ${response.status}`);
-                error.response = { status: response.status, data: errorData };
-                throw error;
-            }
-
-            return await response.json();
-        } catch (error) {
-            if (error instanceof TypeError && error.message.includes('fetch')) {
-                const networkError = new Error('Не удалось подключиться к серверу. Проверьте, что backend запущен.');
-                networkError.isNetworkError = true;
-                throw networkError;
-            }
-            throw error;
+// Базовый fetch с автоматическим обновлением токенов
+async function fetchAPI(endpoint, options = {}) {
+    try {
+        return await fetchWithAuth(endpoint, options);
+    } catch (error) {
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+            throw new Error('Не удалось подключиться к серверу. Проверьте, что backend запущен.');
         }
-    };
-
-    // Используем retry для критичных запросов
-    if (isCritical) {
-        return await retryRequest(fetchFunction, {
-            maxRetries: 3,
-            retryDelay: 1000,
-            shouldRetry: (error) => {
-                // Повторяем при сетевых ошибках
-                if (error.isNetworkError) return true;
-                // Повторяем при серверных ошибках (5xx)
-                if (error.response?.status >= 500 && error.response?.status < 600) return true;
-                // Повторяем при таймаутах и rate limiting
-                if (error.response?.status === 408 || error.response?.status === 429) return true;
-                return false;
-            }
-        });
+        throw error;
     }
-
-    // Для некритичных запросов выполняем без retry
-    return await fetchFunction();
 }
 
 // API для работы с объявлениями
@@ -163,32 +99,38 @@ export const adsAPI = {
         const formData = new FormData();
         formData.append('file', file);
 
-        const url = `${API_BASE_URL}/api/ads/${adId}/media`;
-        const accessToken = tokenStorage.getAccessToken();
-        
-        const headers = {};
-        if (accessToken) {
-            headers['Authorization'] = `Bearer ${accessToken}`;
-        }
-
-        const response = await fetch(url, {
+        // Используем fetchWithAuth для автоматического обновления токенов
+        return await fetchWithAuth(`/api/ads/${adId}/media`, {
             method: 'POST',
-            headers,
             body: formData,
         });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
-            throw new Error(errorData.message || `Ошибка: ${response.status}`);
-        }
-
-        return await response.json();
     },
 
     // Удалить медиа
     deleteMedia: async (adId, mediaId) => {
         return await fetchAPI(`/api/ads/${adId}/media/${mediaId}`, {
             method: 'DELETE',
+        });
+    },
+
+    // Сохранить как черновик
+    saveAsDraft: async (id) => {
+        return await fetchAPI(`/api/ads/${id}/draft`, {
+            method: 'POST',
+        });
+    },
+
+    // Отправить в архив
+    archiveAd: async (id) => {
+        return await fetchAPI(`/api/ads/${id}/archive`, {
+            method: 'POST',
+        });
+    },
+
+    // Опубликовать из архива
+    publishAd: async (id) => {
+        return await fetchAPI(`/api/ads/${id}/publish`, {
+            method: 'POST',
         });
     },
 };

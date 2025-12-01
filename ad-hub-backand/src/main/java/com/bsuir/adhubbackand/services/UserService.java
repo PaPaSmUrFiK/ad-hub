@@ -93,9 +93,13 @@ public class UserService {
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = getCurrentUser(userId);
 
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new InvalidPasswordException("Текущий пароль неверен");
+        // Проверяем текущий пароль только если он указан
+        if (request.currentPassword() != null && !request.currentPassword().trim().isEmpty()) {
+            if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+                throw new InvalidPasswordException("Текущий пароль неверен");
+            }
         }
+        // Если текущий пароль не указан, считаем что пользователь уже авторизован и может менять пароль
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);

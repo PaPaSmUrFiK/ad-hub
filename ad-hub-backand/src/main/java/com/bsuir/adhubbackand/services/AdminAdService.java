@@ -82,7 +82,40 @@ public class AdminAdService {
         );
     }
 
+    @Transactional
+    public ModerationActionResponse sendForRevision(Long adId) {
+        Ad ad = adRepository.findById(adId)
+                .orElseThrow(() -> new AdNotFoundException(adId));
+
+        if (ad.getStatus() != AdStatus.ON_MODERATION) {
+            throw new AdStatusNotAllowedException("Можно отправлять на доработку только объявления со статусом ON_MODERATION");
+        }
+
+        ad.setStatus(AdStatus.DRAFT);
+        adRepository.save(ad);
+
+        log.info("Объявление отправлено на доработку: adId={}", adId);
+
+        return new ModerationActionResponse(
+                ad.getId(),
+                ad.getStatus(),
+                "Объявление отправлено на доработку"
+        );
+    }
+
     private PendingAdResponse mapToPendingResponse(Ad ad) {
+        List<com.bsuir.adhubbackand.model.dto.response.AdMediaResponse> mediaFiles = ad.getMediaFiles() != null
+                ? ad.getMediaFiles().stream()
+                        .map(media -> new com.bsuir.adhubbackand.model.dto.response.AdMediaResponse(
+                                media.getId(),
+                                media.getFileUrl(),
+                                media.getFileType() != null ? media.getFileType().name() : null,
+                                media.getIsPrimary(),
+                                media.getDisplayOrder()
+                        ))
+                        .collect(java.util.stream.Collectors.toList())
+                : java.util.Collections.emptyList();
+
         return new PendingAdResponse(
                 ad.getId(),
                 ad.getTitle(),
@@ -97,6 +130,7 @@ public class AdminAdService {
                 ad.getCategory().getId(),
                 ad.getCategory().getName(),
                 ad.getViewCount(),
+                mediaFiles,
                 ad.getCreatedAt(),
                 ad.getUpdatedAt()
         );

@@ -101,13 +101,11 @@ public class UserAvatarService {
 
     private void deleteOldAvatar(String avatarUrl) {
         try {
-            String fileName = extractFileNameFromUrl(avatarUrl);
-            if (fileName != null) {
-                // Если путь уже содержит папку, используем как есть, иначе добавляем папку avatars
-                String fullPath = fileName.startsWith(FileStorageService.AVATARS_FOLDER + "/") 
-                    ? fileName 
-                    : FileStorageService.AVATARS_FOLDER + "/" + fileName;
-                fileStorageService.deleteFile(fullPath);
+            // FileStorageService теперь работает с путями в формате "bucketName/filename"
+            // Извлекаем путь из URL
+            String filePath = extractFilePathFromUrl(avatarUrl);
+            if (filePath != null) {
+                fileStorageService.deleteFile(filePath);
             }
         } catch (Exception e) {
             log.warn("Не удалось удалить старый аватар: {}", e.getMessage());
@@ -142,15 +140,46 @@ public class UserAvatarService {
         return fileName.substring(fileName.lastIndexOf("."));
     }
 
-    private String extractFileNameFromUrl(String url) {
+    /**
+     * Извлекает путь к файлу из presigned URL
+     * URL может содержать bucket name в пути
+     */
+    private String extractFilePathFromUrl(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
         try {
-            String[] parts = url.split("/");
-            String fileNameWithParams = parts[parts.length - 1];
-            return fileNameWithParams.split("\\?")[0];
+            // Presigned URL обычно имеет формат: http://host:port/bucketName/filename?params
+            java.net.URI uri = new java.net.URI(url);
+            java.net.URL urlObj = uri.toURL();
+            String path = urlObj.getPath();
+            
+            // Убираем первый слэш если есть
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            
+            // Убираем параметры запроса
+            String query = urlObj.getQuery();
+            if (query != null && path.contains("?")) {
+                path = path.split("\\?")[0];
+            }
+            
+            // Если путь содержит bucket name (adhub-avatars или adhub-ads-media), возвращаем как есть
+            // Иначе пытаемся определить по имени файла
+            if (path.contains("adhub-")) {
+                return path; // Уже содержит bucket name
+            } else {
+                // Для обратной совместимости: если файл начинается с "avatar_", это аватар
+                String fileName = path.contains("/") ? path.substring(path.lastIndexOf("/") + 1) : path;
+                if (fileName.startsWith("avatar_")) {
+                    // Возвращаем путь с bucket name для аватаров
+                    return "adhub-avatars/" + fileName;
+                }
+                return path;
+            }
         } catch (Exception e) {
+            log.warn("Не удалось извлечь путь из URL: {}", url, e);
             return null;
         }
     }

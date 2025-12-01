@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { adsAPI } from '../api/ads';
 import { categoriesAPI } from '../api/categories';
+import { favoritesAPI } from '../api/favorites';
 import { getPrimaryImage, formatPrice } from '../utils/categoryUtils';
 import {
     Sheet,
@@ -37,7 +38,9 @@ export function AllListingsPage({
                                     onNavigate,
                                     onViewListing,
                                     initialSearchParams = {},
-                                    onSearchParamsChange
+                                    onSearchParamsChange,
+                                    isAdmin = false,
+                                    isModerator = false
                                 }) {
     const [priceFrom, setPriceFrom] = useState('');
     const [priceTo, setPriceTo] = useState('');
@@ -49,6 +52,7 @@ export function AllListingsPage({
     const [ads, setAds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [favoriteAdIds, setFavoriteAdIds] = useState(new Set());
     const [pagination, setPagination] = useState({
         page: 1,
         size: 20,
@@ -222,6 +226,22 @@ export function AllListingsPage({
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // Обработчик изменения избранного (вызывается из ListingCard ДО API запроса для оптимистичного обновления)
+    const handleFavoriteToggle = (adId) => {
+        // Оптимистичное обновление - сразу меняем состояние для мгновенной перерисовки
+        // API запрос выполняется в ListingCard
+        setFavoriteAdIds(prev => {
+            const newSet = new Set(prev);
+            const wasFavorite = newSet.has(adId);
+            if (wasFavorite) {
+                newSet.delete(adId);
+            } else {
+                newSet.add(adId);
+            }
+            return newSet;
+        });
+    };
+
     // Преобразуем данные объявления для ListingCard
     const mapAdToCard = (ad) => {
         const primaryImage = getPrimaryImage(ad.mediaFiles);
@@ -235,6 +255,9 @@ export function AllListingsPage({
             image: primaryImage || 'https://via.placeholder.com/400x300?text=No+Image',
             isNew: isNew,
             isFeatured: ad.viewCount > 100,
+            isFavorite: favoriteAdIds.has(ad.id),
+            status: ad.status, // Передаем статус объявления
+            onFavoriteToggle: () => handleFavoriteToggle(ad.id), // Callback вызывается после успешного обновления в ListingCard
         };
     };
 
@@ -250,6 +273,8 @@ export function AllListingsPage({
                 onToggleTheme={onToggleTheme}
                 currentPage="all-listings"
                 onNavigate={onNavigate}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

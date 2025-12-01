@@ -3,14 +3,14 @@ import { Mail, Lock, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Checkbox } from './ui/checkbox';
+// import { Checkbox } from './ui/checkbox'; // Закомментировано: не используется
 import { authAPI } from '../api/auth';
 import { validateEmail, validatePassword } from '../utils/validation';
 
 export function LoginPage({ onBack, onRegisterClick, onLogin }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
+    // const [rememberMe, setRememberMe] = useState(false); // Закомментировано: "Запомнить меня"
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -58,9 +58,11 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
             console.log('Токены успешно сохранены');
             
             // Вызываем callback для обновления состояния приложения
+            // Используем await, чтобы дождаться завершения обновления состояния
             if (onLogin) {
                 console.log('Вызываем onLogin callback');
-                onLogin();
+                await onLogin();
+                console.log('onLogin callback завершен');
             } else {
                 console.warn('onLogin callback не передан');
             }
@@ -154,7 +156,8 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between">
+                            {/* Закомментировано: "Запомнить меня" и "Забыли пароль?" */}
+                            {/* <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-2">
                                     <Checkbox
                                         id="remember"
@@ -171,7 +174,7 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
                                 <a href="#" className="text-sm text-teal-600 hover:text-teal-700">
                                     Забыли пароль?
                                 </a>
-                            </div>
+                            </div> */}
 
                             <Button 
                                 type="submit" 
@@ -181,7 +184,8 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
                                 {loading ? 'Вход...' : 'Войти'}
                             </Button>
 
-                            <div className="relative my-6">
+                            {/* Закомментировано: вход через Google и GitHub */}
+                            {/* <div className="relative my-6">
                                 <div className="absolute inset-0 flex items-center">
                                     <div className="w-full border-t border-stone-300"></div>
                                 </div>
@@ -218,7 +222,7 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
                                     </svg>
                                     GitHub
                                 </Button>
-                            </div>
+                            </div> */}
 
                             {/* Register Link */}
                             <div className="text-center pt-4 border-t border-stone-200 mt-6">

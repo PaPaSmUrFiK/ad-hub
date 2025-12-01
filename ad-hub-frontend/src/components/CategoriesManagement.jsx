@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { adminAPI } from '../api/admin';
 import { Plus, Edit, Trash2, Loader2, X, Check } from 'lucide-react';
 import { Button } from './ui/button';
@@ -17,23 +17,11 @@ export function CategoriesManagement({ isDarkTheme }) {
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [showCreateForm, setShowCreateForm] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [formData, setFormData] = useState({ name: '', description: '' });
     const [actionLoading, setActionLoading] = useState(false);
-    const isOpeningRef = useRef(false);
-
-    // Отслеживание изменений состояния диалога
-    useEffect(() => {
-        console.log('[CategoriesManagement] showCreateDialog изменился:', showCreateDialog);
-        if (showCreateDialog) {
-            // Сбрасываем флаг открытия после небольшой задержки
-            setTimeout(() => {
-                isOpeningRef.current = false;
-            }, 100);
-        }
-    }, [showCreateDialog]);
 
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -61,7 +49,9 @@ export function CategoriesManagement({ isDarkTheme }) {
         }
     };
 
-    const handleCreate = async () => {
+    const handleCreate = async (e) => {
+        e.preventDefault();
+        
         if (!formData.name.trim()) {
             setError('Название категории обязательно');
             return;
@@ -71,13 +61,12 @@ export function CategoriesManagement({ isDarkTheme }) {
             setActionLoading(true);
             setError('');
             await adminAPI.createCategory(formData.name.trim(), formData.description?.trim() || null);
-            setShowCreateDialog(false);
+            setShowCreateForm(false);
             setFormData({ name: '', description: '' });
             await loadCategories();
         } catch (err) {
             const errorMessage = err.message || 'Ошибка при создании категории';
             setError(errorMessage);
-            alert(errorMessage);
         } finally {
             setActionLoading(false);
         }
@@ -128,16 +117,12 @@ export function CategoriesManagement({ isDarkTheme }) {
         setShowEditDialog(true);
     };
 
-    const openCreateDialog = (e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
+    const toggleCreateForm = () => {
+        setShowCreateForm(!showCreateForm);
+        if (!showCreateForm) {
+            setFormData({ name: '', description: '' });
+            setError('');
         }
-        console.log('[CategoriesManagement] Открытие диалога создания категории');
-        isOpeningRef.current = true;
-        setFormData({ name: '', description: '' });
-        setShowCreateDialog(true);
-        console.log('[CategoriesManagement] showCreateDialog установлен в true');
     };
 
     return (
@@ -148,15 +133,91 @@ export function CategoriesManagement({ isDarkTheme }) {
                     <h2 className={`${textColor} text-xl font-bold`}>Управление категориями</h2>
                     <p className={textMuted}>Создавайте, редактируйте и удаляйте категории объявлений</p>
                 </div>
-                <Button onClick={(e) => openCreateDialog(e)} className={buttonBg} type="button">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Создать категорию
+                <Button onClick={toggleCreateForm} className={buttonBg} type="button">
+                    {showCreateForm ? (
+                        <>
+                            <X className="h-4 w-4 mr-2" />
+                            Отмена
+                        </>
+                    ) : (
+                        <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Создать категорию
+                        </>
+                    )}
                 </Button>
             </div>
 
             {error && (
                 <div className={`mb-4 p-3 rounded ${isDarkTheme ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-700'}`}>
                     {error}
+                </div>
+            )}
+
+            {/* Create Form */}
+            {showCreateForm && (
+                <div className={`${cardBg} rounded-xl border ${borderColor} p-6 mb-6 shadow-md`}>
+                    <h3 className={`${textColor} text-lg font-semibold mb-4`}>Создать новую категорию</h3>
+                    <form onSubmit={handleCreate} className="space-y-4">
+                        <div>
+                            <Label htmlFor="create-name" className={textColor}>Название *</Label>
+                            <Input
+                                id="create-name"
+                                type="text"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                placeholder="Название категории"
+                                className={`mt-1 ${inputBg}`}
+                                required
+                                disabled={actionLoading}
+                                maxLength={100}
+                            />
+                            <p className={`${textMuted} text-xs mt-1`}>Максимум 100 символов</p>
+                        </div>
+                        <div>
+                            <Label htmlFor="create-description" className={textColor}>Описание</Label>
+                            <textarea
+                                id="create-description"
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                placeholder="Описание категории (необязательно)"
+                                rows={4}
+                                className={`mt-1 w-full px-3 py-2 rounded-md border ${inputBg} resize-none`}
+                                disabled={actionLoading}
+                                maxLength={1000}
+                            />
+                            <p className={`${textMuted} text-xs mt-1`}>Максимум 1000 символов</p>
+                        </div>
+                        <div className="flex items-center gap-3 pt-2">
+                            <Button
+                                type="submit"
+                                disabled={actionLoading || !formData.name.trim()}
+                                className={buttonBg}
+                            >
+                                {actionLoading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Создание...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="h-4 w-4 mr-2" />
+                                        Создать категорию
+                                    </>
+                                )}
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={toggleCreateForm}
+                                className={borderColor}
+                                disabled={actionLoading}
+                            >
+                                <X className="h-4 w-4 mr-2" />
+                                Отмена
+                            </Button>
+                        </div>
+                    </form>
                 </div>
             )}
 
@@ -169,10 +230,12 @@ export function CategoriesManagement({ isDarkTheme }) {
             ) : categories.length === 0 ? (
                 <div className="text-center py-12">
                     <p className={textMuted}>Категории не найдены</p>
-                    <Button onClick={(e) => openCreateDialog(e)} className={`mt-4 ${buttonBg}`} type="button">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Создать первую категорию
-                    </Button>
+                    {!showCreateForm && (
+                        <Button onClick={toggleCreateForm} className={`mt-4 ${buttonBg}`} type="button">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Создать первую категорию
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -189,7 +252,7 @@ export function CategoriesManagement({ isDarkTheme }) {
                                     )}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 pt-3 border-t borderColor">
+                            <div className={`flex items-center gap-2 pt-3 border-t ${borderColor}`}>
                                 <button
                                     onClick={() => openEditDialog(category)}
                                     disabled={actionLoading}
@@ -215,93 +278,18 @@ export function CategoriesManagement({ isDarkTheme }) {
                 </div>
             )}
 
-            {/* Create Dialog */}
-            <Dialog 
-                open={showCreateDialog}
-                onOpenChange={(open) => {
-                    console.log('[CategoriesManagement] Dialog onOpenChange вызван, open:', open, 'showCreateDialog:', showCreateDialog, 'isOpeningRef:', isOpeningRef.current);
-                    // Предотвращаем закрытие, если диалог только что открылся
-                    if (!open && isOpeningRef.current) {
-                        console.log('[CategoriesManagement] Предотвращено закрытие диалога (только что открылся)');
-                        return;
-                    }
-                    if (!open) {
-                        console.log('[CategoriesManagement] Закрытие диалога');
-                        setShowCreateDialog(false);
-                        setFormData({ name: '', description: '' });
-                    }
-                }}
-            >
-                <DialogContent 
-                    className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} 
-                    style={{ zIndex: 100 }}
-                >
-                    <DialogHeader>
-                        <DialogTitle className={textColor}>Создать категорию</DialogTitle>
-                        <DialogDescription className={textMuted}>
-                            Введите название и описание новой категории
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div>
-                            <Label className={textColor}>Название *</Label>
-                            <Input
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="Название категории"
-                                className={`mt-1 ${inputBg}`}
-                            />
-                        </div>
-                        <div>
-                            <Label className={textColor}>Описание</Label>
-                            <textarea
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="Описание категории (необязательно)"
-                                rows={3}
-                                className={`mt-1 w-full px-3 py-2 rounded-md border ${inputBg} resize-none`}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowCreateDialog(false)}
-                            className={borderColor}
-                        >
-                            <X className="h-4 w-4 mr-2" />
-                            Отмена
-                        </Button>
-                        <Button
-                            onClick={handleCreate}
-                            disabled={actionLoading || !formData.name.trim()}
-                            className={buttonBg}
-                        >
-                            {actionLoading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Создание...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Создать
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {/* Edit Dialog */}
             <Dialog 
                 open={showEditDialog} 
                 onOpenChange={(open) => {
-                    console.log('[CategoriesManagement] Edit Dialog onOpenChange вызван, open:', open);
                     setShowEditDialog(open);
+                    if (!open) {
+                        setSelectedCategory(null);
+                        setFormData({ name: '', description: '' });
+                    }
                 }}
             >
-                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900'}`} style={{ zIndex: 100 }}>
+                <DialogContent className={`${isDarkTheme ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white text-stone-900 border-stone-200'}`}>
                     <DialogHeader>
                         <DialogTitle className={textColor}>Редактировать категорию</DialogTitle>
                         <DialogDescription className={textMuted}>
@@ -316,6 +304,7 @@ export function CategoriesManagement({ isDarkTheme }) {
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 placeholder="Название категории"
                                 className={`mt-1 ${inputBg}`}
+                                maxLength={100}
                             />
                         </div>
                         <div>
@@ -324,8 +313,9 @@ export function CategoriesManagement({ isDarkTheme }) {
                                 value={formData.description}
                                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                 placeholder="Описание категории (необязательно)"
-                                rows={3}
+                                rows={4}
                                 className={`mt-1 w-full px-3 py-2 rounded-md border ${inputBg} resize-none`}
+                                maxLength={1000}
                             />
                         </div>
                     </div>
@@ -361,4 +351,3 @@ export function CategoriesManagement({ isDarkTheme }) {
         </div>
     );
 }
-

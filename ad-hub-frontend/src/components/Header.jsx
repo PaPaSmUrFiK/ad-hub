@@ -1,4 +1,4 @@
-import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield } from 'lucide-react';
+import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, CheckSquare } from 'lucide-react';
 import { Button } from './ui/button.jsx';
 import {
     DropdownMenu,
@@ -19,7 +19,8 @@ export function Header({
                            currentPage = 'home',
                            onNavigate,
                            hideCreateButton = false,
-                           isAdmin = false
+                           isAdmin = false,
+                           isModerator = false
                        }) {
     const bgColor = isDarkTheme ? 'bg-neutral-900/95 backdrop-blur-sm' : 'bg-stone-50/95 backdrop-blur-sm';
     const borderColor = isDarkTheme ? 'border-neutral-800' : 'border-stone-200';
@@ -45,48 +46,45 @@ export function Header({
 
                         {/* Navigation Tabs */}
                         <nav className="hidden md:flex items-center gap-1">
-                            {(() => {
-                                // Логируем для отладки
-                                console.log('[Header] Рендер навигации - isAuthenticated:', isAuthenticated, 'isAdmin:', isAdmin, 'currentPage:', currentPage);
-                                const showAdminNav = isAuthenticated && isAdmin;
-                                console.log('[Header] Показывать админ навигацию:', showAdminNav);
-                                
-                                return showAdminNav ? (
-                                    // Навигация для администратора - одна вкладка "Панель администратора"
-                                    <button
-                                        onClick={() => {
-                                            console.log('[Header] Клик на Панель администратора');
-                                            onNavigate?.('admin');
-                                        }}
-                                        className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
-                                    >
-                                        <Shield className="h-4 w-4" />
-                                        Панель администратора
-                                    </button>
-                                ) : (
-                                    // Навигация для обычных пользователей
-                                    <>
-                                        <button
-                                            onClick={() => onNavigate?.('home')}
-                                            className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
-                                        >
-                                            Главная
-                                        </button>
-                                        <button
-                                            onClick={() => onNavigate?.('all-listings')}
-                                            className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
-                                        >
-                                            Объявления
-                                        </button>
-                                        <button
-                                            onClick={() => onNavigate?.('categories')}
-                                            className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
-                                        >
-                                            Категории
-                                        </button>
-                                    </>
-                                );
-                            })()}
+                            {/* Все вкладки доступны для всех пользователей, включая администратора */}
+                            <button
+                                onClick={() => onNavigate?.('home')}
+                                className={`px-4 py-2 ${currentPage === 'home' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'home' ? '' : 'border-transparent'}`}
+                            >
+                                Главная
+                            </button>
+                            <button
+                                onClick={() => onNavigate?.('all-listings')}
+                                className={`px-4 py-2 ${currentPage === 'all-listings' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'all-listings' ? '' : 'border-transparent'}`}
+                            >
+                                Объявления
+                            </button>
+                            <button
+                                onClick={() => onNavigate?.('categories')}
+                                className={`px-4 py-2 ${currentPage === 'categories' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'categories' ? '' : 'border-transparent'}`}
+                            >
+                                Категории
+                            </button>
+                            {/* Вкладка "Модерация" показывается для модераторов и администраторов */}
+                            {isAuthenticated && isModerator && (
+                                <button
+                                    onClick={() => onNavigate?.('moderation')}
+                                    className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'moderation' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'moderation' ? '' : 'border-transparent'}`}
+                                >
+                                    <CheckSquare className="h-4 w-4" />
+                                    Модерация
+                                </button>
+                            )}
+                            {/* Вкладка "Панель администратора" показывается только для администратора */}
+                            {isAuthenticated && isAdmin && (
+                                <button
+                                    onClick={() => onNavigate?.('admin')}
+                                    className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'admin' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'admin' ? '' : 'border-transparent'}`}
+                                >
+                                    <Shield className="h-4 w-4" />
+                                    Панель администратора
+                                </button>
+                            )}
                         </nav>
                     </div>
 
@@ -104,7 +102,7 @@ export function Header({
 
                         {isAuthenticated ? (
                             <>
-                                {/* Для администратора показываем только уведомления и выход */}
+                                {/* Для администратора показываем все элементы, как и для обычных пользователей */}
                                 {isAdmin ? (
                                     <>
                                         <Button
@@ -116,8 +114,16 @@ export function Header({
                                             <Bell className="h-5 w-5" />
                                             <span className={`absolute top-1 right-1 w-2 h-2 ${isDarkTheme ? 'bg-orange-500' : 'bg-teal-500'} rounded-full`}></span>
                                         </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
+                                            onClick={onFavoritesClick}
+                                        >
+                                            <Heart className="h-5 w-5" />
+                                        </Button>
 
-                                        {/* User Dropdown Menu для администратора - только выход */}
+                                        {/* User Dropdown Menu для администратора - с профилем, избранным и панелью администратора */}
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button
@@ -132,6 +138,27 @@ export function Header({
                                                 align="end"
                                                 className={isDarkTheme ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-stone-200'}
                                             >
+                                                <DropdownMenuItem
+                                                    onClick={() => onNavigate?.('profile')}
+                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
+                                                >
+                                                    <User className="h-4 w-4 mr-2" />
+                                                    Профиль
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={onFavoritesClick}
+                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
+                                                >
+                                                    <Heart className="h-4 w-4 mr-2" />
+                                                    Избранное
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => onNavigate?.('admin')}
+                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
+                                                >
+                                                    <Shield className="h-4 w-4 mr-2" />
+                                                    Панель администратора
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => onNavigate?.('notifications')}
                                                     className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
@@ -149,6 +176,16 @@ export function Header({
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+
+                                        {!hideCreateButton && (
+                                            <Button
+                                                className={`${buttonBg} text-white shadow-md`}
+                                                onClick={() => onNavigate?.('create-listing')}
+                                            >
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Разместить
+                                            </Button>
+                                        )}
                                     </>
                                 ) : (
                                     <>
