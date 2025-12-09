@@ -74,7 +74,9 @@ export function NotificationsPage({
                                       onLogout,
                                       onNavigate,
                                       isAdmin = false,
-                                      isModerator = false
+                                      isModerator = false,
+                                      onUnreadCountChange = () => {},
+                                      onHasNotificationsChange = () => {}
                                   }) {
     const bgColor = isDarkTheme ? 'bg-neutral-950' : 'bg-stone-100';
     const cardBg = isDarkTheme ? 'bg-neutral-900' : 'bg-white';
@@ -106,10 +108,12 @@ export function NotificationsPage({
             setError('');
             const data = await notificationsAPI.getNotifications();
             setNotifications(data || []);
+            onHasNotificationsChange((data || []).length > 0);
         } catch (err) {
             console.error('Ошибка при загрузке уведомлений:', err);
             setError(err.message || 'Не удалось загрузить уведомления');
             setNotifications([]);
+            onHasNotificationsChange(false);
         } finally {
             setLoading(false);
         }
@@ -119,6 +123,7 @@ export function NotificationsPage({
         try {
             const count = await notificationsAPI.getUnreadCount();
             setUnreadCount(count || 0);
+            onUnreadCountChange(count || 0);
         } catch (err) {
             console.error('Ошибка при загрузке количества непрочитанных:', err);
         }
@@ -144,20 +149,22 @@ export function NotificationsPage({
                 setNotifications(prev => prev.map(n => 
                     n.id === notification.id ? { ...n, isRead: true } : n
                 ));
+                // Оптимистично уменьшаем счетчик
+                setUnreadCount(prev => {
+                    const next = Math.max(0, (prev || 0) - 1);
+                    onUnreadCountChange(next);
+                    return next;
+                });
                 await loadUnreadCount();
             } catch (err) {
                 console.error('Ошибка при отметке как прочитанного:', err);
             }
         }
 
-        // Переход к объявлению, если оно связано
-        if (notification.relatedAdId && onNavigate) {
-            onNavigate('listing', { id: notification.relatedAdId });
-        }
     };
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen flex flex-col ${bgColor}`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -170,8 +177,10 @@ export function NotificationsPage({
                 onNavigate={onNavigate}
                 isAdmin={isAdmin}
                 isModerator={isModerator}
+                unreadCount={unreadCount}
             />
 
+            <main className="flex-1">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
@@ -255,6 +264,7 @@ export function NotificationsPage({
                     )}
                 </div>
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

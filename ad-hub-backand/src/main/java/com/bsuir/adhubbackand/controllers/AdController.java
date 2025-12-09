@@ -88,6 +88,15 @@ public class AdController {
         return ResponseEntity.ok(ad);
     }
 
+    @PostMapping("/{id}/view")
+    public ResponseEntity<Void> incrementView(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Long currentUserId = userDetails != null ? userDetails.getId() : null;
+        adService.incrementViewCountSafe(id, currentUserId);
+        return ResponseEntity.accepted().build();
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<AdResponse> updateAd(
             @PathVariable Long id,

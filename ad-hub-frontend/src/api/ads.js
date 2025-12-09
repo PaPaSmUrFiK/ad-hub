@@ -71,6 +71,13 @@ export const adsAPI = {
         return await fetchAPI(`/api/ads/${id}`);
     },
 
+    // Инкрементировать просмотры
+    addView: async (id) => {
+        return await fetchAPI(`/api/ads/${id}/view`, {
+            method: 'POST',
+        });
+    },
+
     // Создать объявление
     createAd: async (adData) => {
         return await fetchAPI('/api/ads', {

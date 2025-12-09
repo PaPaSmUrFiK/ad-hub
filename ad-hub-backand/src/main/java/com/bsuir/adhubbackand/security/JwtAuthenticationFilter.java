@@ -40,8 +40,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (StringUtils.hasText(jwt) && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                log.debug("Извлечение username из JWT токена");
-                
                 // Проверяем, не истек ли токен, перед попыткой извлечения username
                 if (jwtService.isTokenExpired(jwt)) {
                     log.warn("JWT токен истек");
@@ -53,11 +51,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtService.extractUsername(jwt);
 
                 if (username != null && !username.isEmpty()) {
-                    log.debug("Загрузка данных пользователя для: {}", username);
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                     if (jwtService.isTokenValid(jwt, userDetails)) {
-                        log.debug("Токен валиден для пользователя: {}", username);
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
                                         userDetails,
@@ -67,7 +63,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                         SecurityContextHolder.getContext().setAuthentication(authentication);
-                        log.debug("Установлен контекст безопасности для пользователя: {}", username);
                     } else {
                         log.warn("Валидация токена не удалась для пользователя: {}", username);
                     }

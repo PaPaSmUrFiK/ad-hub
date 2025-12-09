@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -38,7 +39,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> getUserNotifications(Long userId) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         Pageable pageable = PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "sentAt"));
@@ -50,7 +51,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<NotificationResponse> getUserNotifications(Long userId, Integer page, Integer size) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         int pageNumber = page != null && page > 0 ? page - 1 : 0;
@@ -81,17 +82,15 @@ public class NotificationService {
             notification.setIsRead(true);
             notification.setReadAt(LocalDateTime.now());
             notificationRepository.save(notification);
-            log.info("Уведомление {} отмечено как прочитанное пользователем {}", notificationId, userId);
         }
     }
 
     @Transactional
     public void markAllAsRead(Long userId) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         notificationRepository.markAllAsReadByUser(userId, LocalDateTime.now());
-        log.info("Все уведомления пользователя {} отмечены как прочитанные", userId);
     }
 
     @Transactional
@@ -105,10 +104,9 @@ public class NotificationService {
         }
 
         notificationRepository.delete(notification);
-        log.info("Уведомление {} удалено пользователем {}", notificationId, userId);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public NotificationResponse createNotification(CreateNotificationRequest request) {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
@@ -133,14 +131,63 @@ public class NotificationService {
                 .build();
 
         notification = notificationRepository.save(notification);
-        log.info("Создано уведомление {} для пользователя {}", notification.getId(), user.getId());
-
         return mapToResponse(notification);
     }
 
     @Transactional(readOnly = true)
     public List<NotificationType> getAllNotificationTypes() {
         return notificationTypeRepository.findAll();
+    }
+
+    /**
+     * Упрощенный метод отправки уведомления по имени типа.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public NotificationResponse sendNotification(Long userId,
+                                                 String notificationTypeName,
+                                                 String title,
+                                                 String message,
+                                                 Long relatedAdId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        NotificationType notificationType = notificationTypeRepository.findByName(notificationTypeName)
+                .orElseThrow(() -> new RuntimeException("Тип уведомления не найден: " + notificationTypeName));
+
+        Ad relatedAd = null;
+        if (relatedAdId != null) {
+            relatedAd = adRepository.findById(relatedAdId)
+                    .orElseThrow(() -> new AdNotFoundException(relatedAdId));
+        }
+
+        Notification notification = Notification.builder()
+                .user(user)
+                .notificationType(notificationType)
+                .title(title)
+                .message(message)
+                .relatedAd(relatedAd)
+                .sentAt(LocalDateTime.now())
+                .isRead(false)
+                .build();
+
+        notification = notificationRepository.save(notification);
+        return mapToResponse(notification);
+    }
+
+    /**
+     * Безопасная отправка уведомления: не прерывает основной поток выполнения.
+     */
+    public void sendNotificationSafe(Long userId,
+                                     String notificationTypeName,
+                                     String title,
+                                     String message,
+                                     Long relatedAdId) {
+        try {
+            sendNotification(userId, notificationTypeName, title, message, relatedAdId);
+        } catch (Exception e) {
+            log.error("Не удалось отправить уведомление (без прерывания основного процесса): userId={}, type={}, error={}",
+                    userId, notificationTypeName, e.getMessage(), e);
+        }
     }
 
     private NotificationResponse mapToResponse(Notification notification) {

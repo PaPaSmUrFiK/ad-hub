@@ -29,11 +29,7 @@ public interface FavoriteAdRepository extends JpaRepository<FavoriteAd, Long> {
 
     long countByAdId(Long adId);
 
-    @Modifying
-    @Query("DELETE FROM FavoriteAd fa WHERE fa.user.id = :userId AND fa.ad.id = :adId")
-    void deleteByUserIdAndAdId(@Param("userId") Long userId, @Param("adId") Long adId);
-
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM FavoriteAd fa WHERE fa.ad.id = :adId")
     void deleteByAdId(@Param("adId") Long adId);
 
@@ -46,4 +42,19 @@ public interface FavoriteAdRepository extends JpaRepository<FavoriteAd, Long> {
 
     @Query("SELECT COUNT(fa) FROM FavoriteAd fa WHERE fa.ad.id IN :adIds")
     long countFavoritesByAdIds(@Param("adIds") List<Long> adIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM FavoriteAd fa WHERE fa.user.id = :userId AND fa.ad.id = :adId")
+    int deleteByUserIdAndAdId(@Param("userId") Long userId, @Param("adId") Long adId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            value = """
+                    INSERT INTO favorite_ads (user_id, ad_id, created_at)
+                    VALUES (:userId, :adId, NOW())
+                    ON CONFLICT DO NOTHING
+                    """,
+            nativeQuery = true
+    )
+    int insertIfNotExists(@Param("userId") Long userId, @Param("adId") Long adId);
 }

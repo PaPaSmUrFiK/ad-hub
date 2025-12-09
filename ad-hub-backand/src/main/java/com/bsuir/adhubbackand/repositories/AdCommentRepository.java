@@ -41,7 +41,7 @@ public interface AdCommentRepository extends JpaRepository<AdComment, Long> {
     @Query("UPDATE AdComment ac SET ac.isActive = false WHERE ac.id = :commentId")
     void deactivateComment(@Param("commentId") Long commentId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE AdComment ac SET ac.isActive = false WHERE ac.ad.id = :adId")
     void deactivateAllCommentsByAdId(@Param("adId") Long adId);
 

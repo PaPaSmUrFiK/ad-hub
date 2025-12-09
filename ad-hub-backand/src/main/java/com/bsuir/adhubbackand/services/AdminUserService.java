@@ -29,6 +29,7 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final AdRepository adRepository;
     private final UserRoleRepository userRoleRepository;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public UserListResponse getUsers(Integer page, Integer size, String search) {
@@ -100,6 +101,14 @@ public class AdminUserService {
         userRepository.save(user);
 
         log.info("Пользователь заблокирован: userId={}, email={}, заблокировал adminId={}", userId, user.getEmail(), currentAdminId);
+
+        notificationService.sendNotificationSafe(
+                userId,
+                "USER_BLOCKED",
+                "Аккаунт заблокирован",
+                "Ваш аккаунт был заблокирован администратором.",
+                null
+        );
     }
 
     @Transactional
@@ -141,6 +150,14 @@ public class AdminUserService {
 
         log.info("Роль пользователя изменена: userId={}, email={}, старый роль={}, новая роль={}, изменил adminId={}", 
                 userId, user.getEmail(), oldRole, request.roleName(), currentAdminId);
+
+        notificationService.sendNotificationSafe(
+                userId,
+                "ROLE_CHANGED",
+                "Изменена роль аккаунта",
+                "Ваша роль изменена с " + oldRole + " на " + request.roleName(),
+                null
+        );
     }
 
     @org.springframework.transaction.annotation.Transactional

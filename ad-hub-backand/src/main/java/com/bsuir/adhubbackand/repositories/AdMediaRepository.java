@@ -39,7 +39,7 @@ public interface AdMediaRepository extends JpaRepository<AdMedia, Long> {
     @Query("UPDATE AdMedia am SET am.isPrimary = true WHERE am.id = :mediaId")
     void setAsPrimaryMedia(@Param("mediaId") Long mediaId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM AdMedia am WHERE am.ad.id = :adId")
     void deleteByAdId(@Param("adId") Long adId);
 

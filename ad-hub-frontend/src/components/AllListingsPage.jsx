@@ -46,6 +46,7 @@ export function AllListingsPage({
     const [priceTo, setPriceTo] = useState('');
     const [city, setCity] = useState('');
     const [searchQuery, setSearchQuery] = useState(initialSearchParams.query || '');
+    const [searchDraft, setSearchDraft] = useState(initialSearchParams.query || '');
     const [category, setCategory] = useState(initialSearchParams.categoryId ? initialSearchParams.categoryId.toString() : 'all');
     const [sortBy, setSortBy] = useState('newest');
     const [categories, setCategories] = useState([]);
@@ -84,6 +85,25 @@ export function AllListingsPage({
         loadCategories();
     }, []);
 
+    // Загружаем избранные объявления для авторизованного пользователя
+    useEffect(() => {
+        const loadFavorites = async () => {
+            if (!isAuthenticated) {
+                setFavoriteAdIds(new Set());
+                return;
+            }
+            try {
+                const favorites = await favoritesAPI.getFavorites();
+                const favoriteIds = new Set((favorites.favorites || []).map(f => f.adId));
+                setFavoriteAdIds(favoriteIds);
+            } catch (error) {
+                console.error('Ошибка при загрузке избранного:', error);
+                setFavoriteAdIds(new Set());
+            }
+        };
+        loadFavorites();
+    }, [isAuthenticated]);
+
     // Сбрасываем страницу на 1 при изменении фильтров (но не при изменении page)
     useEffect(() => {
         setPagination(prev => {
@@ -115,6 +135,7 @@ export function AllListingsPage({
     useEffect(() => {
         if (initialSearchParams.query) {
             setSearchQuery(initialSearchParams.query);
+            setSearchDraft(initialSearchParams.query);
         }
         if (initialSearchParams.categoryId) {
             setCategory(initialSearchParams.categoryId.toString());
@@ -188,6 +209,7 @@ export function AllListingsPage({
         setPriceFrom('');
         setPriceTo('');
         setCity('');
+        setSearchDraft('');
         setSearchQuery('');
         setCategory('all');
         setSortBy('newest');
@@ -202,6 +224,7 @@ export function AllListingsPage({
 
     const handleSearch = (e) => {
         e.preventDefault();
+        setSearchQuery(searchDraft);
         // Сбрасываем на первую страницу, useEffect автоматически вызовет loadAds
         setPagination(prev => ({ ...prev, page: 1 }));
     };
@@ -262,7 +285,7 @@ export function AllListingsPage({
     };
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen ${bgColor} flex flex-col`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -277,18 +300,19 @@ export function AllListingsPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Search and Filters */}
                 <div className={`${cardBg} rounded-xl border ${borderColor} p-4 mb-6`}>
                     <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-3">
                         <div className="flex-1 relative">
                             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${textMuted}`} />
-                            <Input
-                                placeholder="Поиск объявлений..."
-                                className={`${inputBg} pl-10`}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
+                                <Input
+                                    placeholder="Поиск объявлений..."
+                                    className={`${inputBg} pl-10`}
+                                    value={searchDraft}
+                                    onChange={(e) => setSearchDraft(e.target.value)}
+                                />
                         </div>
                         <Select value={category} onValueChange={setCategory}>
                             <SelectTrigger className={`w-full md:w-[200px] ${inputBg}`}>
@@ -544,6 +568,7 @@ export function AllListingsPage({
                     </div>
                 )}
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

@@ -22,7 +22,6 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -92,7 +91,7 @@ public class AuthService {
 
         // Используем метод с JOIN FETCH для загрузки роли вместе с пользователем
         User user = userRepository.findByEmailWithRole(request.email())
-                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + request.email() + " не найден"));
+                .orElseThrow(() -> new BadCredentialsException("Неверный логин или пароль"));
         
         // Проверяем, что роль загружена
         if (user.getRole() == null) {
@@ -103,7 +102,7 @@ public class AuthService {
         log.info("Роль пользователя при входе: {}", user.getRole().getName());
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new BadCredentialsException("Неверный пароль");
+            throw new BadCredentialsException("Неверный логин или пароль");
         }
 
         // Обновляем время последнего входа

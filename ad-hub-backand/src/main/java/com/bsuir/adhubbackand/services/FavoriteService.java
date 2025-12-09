@@ -1,14 +1,13 @@
 package com.bsuir.adhubbackand.services;
 
 import com.bsuir.adhubbackand.exception.AdNotFoundException;
-import com.bsuir.adhubbackand.exception.DuplicateFavoriteException;
 import com.bsuir.adhubbackand.exception.UserNotFoundException;
 import com.bsuir.adhubbackand.model.dto.response.AdResponse;
 import com.bsuir.adhubbackand.model.dto.response.FavoriteListResponse;
 import com.bsuir.adhubbackand.model.dto.response.FavoriteResponse;
 import com.bsuir.adhubbackand.model.entities.Ad;
 import com.bsuir.adhubbackand.model.entities.FavoriteAd;
-import com.bsuir.adhubbackand.model.entities.User;
+import com.bsuir.adhubbackand.model.enums.AdStatus;
 import com.bsuir.adhubbackand.repositories.AdRepository;
 import com.bsuir.adhubbackand.repositories.FavoriteAdRepository;
 import com.bsuir.adhubbackand.repositories.UserRepository;
@@ -31,33 +30,33 @@ public class FavoriteService {
 
     @Transactional
     public void addToFavorites(Long adId, Long userId) {
-        Ad ad = adRepository.findById(adId)
+        // Проверяем наличие объявления и пользователя
+        adRepository.findById(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
 
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
-        // Проверяем, что объявление еще не в избранном
-        if (favoriteAdRepository.existsByUserIdAndAdId(userId, adId)) {
-            throw new DuplicateFavoriteException("Объявление уже в избранном");
+        // Используем ON CONFLICT DO NOTHING на уровне SQL, чтобы избежать дубликатов и rollback
+        int inserted = favoriteAdRepository.insertIfNotExists(userId, adId);
+        if (inserted > 0) {
+            log.info("Объявление добавлено в избранное: adId={}, userId={}", adId, userId);
+        } else {
+            log.info("Объявление уже в избранном (no-op): adId={}, userId={}", adId, userId);
         }
-
-        FavoriteAd favoriteAd = FavoriteAd.builder()
-                .user(user)
-                .ad(ad)
-                .build();
-
-        favoriteAdRepository.save(favoriteAd);
-        log.info("Объявление добавлено в избранное: adId={}, userId={}", adId, userId);
     }
 
     @Transactional
     public void removeFromFavorites(Long adId, Long userId) {
-        FavoriteAd favoriteAd = favoriteAdRepository.findByUserIdAndAdId(userId, adId)
-                .orElseThrow(() -> new AdNotFoundException("Объявление не найдено в избранном"));
-
-        favoriteAdRepository.delete(favoriteAd);
-        log.info("Объявление удалено из избранного: adId={}, userId={}", adId, userId);
+        // Используем прямой SQL запрос для удаления, чтобы избежать оптимистической блокировки
+        // при одновременных запросах
+        int deletedCount = favoriteAdRepository.deleteByUserIdAndAdId(userId, adId);
+        
+        if (deletedCount > 0) {
+            log.info("Объявление удалено из избранного: adId={}, userId={}", adId, userId);
+        } else {
+            log.info("Объявление уже удалено из избранного: adId={}, userId={}", adId, userId);
+        }
     }
 
     public FavoriteListResponse getUserFavorites(Long userId) {
@@ -68,6 +67,7 @@ public class FavoriteService {
         List<FavoriteAd> favorites = favoriteAdRepository.findByUserId(userId);
 
         List<FavoriteResponse> favoriteResponses = favorites.stream()
+                .filter(favorite -> favorite.getAd().getStatus() != AdStatus.DELETED) // Исключаем удаленные объявления
                 .map(favorite -> {
                     Ad ad = favorite.getAd();
                     

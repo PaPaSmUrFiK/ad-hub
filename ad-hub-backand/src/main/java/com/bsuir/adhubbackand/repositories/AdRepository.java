@@ -26,6 +26,8 @@ public interface AdRepository extends JpaRepository<Ad, Long> {
 
     Page<Ad> findByCategoryId(Long categoryId, Pageable pageable);
 
+    Page<Ad> findByCategoryIdAndStatus(Long categoryId, AdStatus status, Pageable pageable);
+
     List<Ad> findByStatus(AdStatus status);
 
     Page<Ad> findByStatus(AdStatus status, Pageable pageable);
@@ -33,6 +35,8 @@ public interface AdRepository extends JpaRepository<Ad, Long> {
     List<Ad> findByUserIdAndStatus(Long userId, AdStatus status);
 
     Page<Ad> findByUserIdAndStatus(Long userId, AdStatus status, Pageable pageable);
+
+    Page<Ad> findByUserIdAndStatusNot(Long userId, AdStatus status, Pageable pageable);
 
     @Query("SELECT a FROM Ad a WHERE a.status = 'ACTIVE' AND a.price BETWEEN :minPrice AND :maxPrice")
     List<Ad> findActiveAdsByPriceRange(@Param("minPrice") BigDecimal minPrice,

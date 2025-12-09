@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Order(2) // Выполняется после DataInitializer
 public class MinioInitializer implements CommandLineRunner {
 
     private final MinioClient minioClient;
@@ -24,6 +26,9 @@ public class MinioInitializer implements CommandLineRunner {
 
     @Value("${minio.bucket.ads-media}")
     private String adsMediaBucketName;
+
+    @Value("${minio.url}")
+    private String minioUrl;
 
     /**
      * Инициализация MinIO buckets при старте приложения
@@ -46,10 +51,16 @@ public class MinioInitializer implements CommandLineRunner {
             
             log.info("=== Инициализация MinIO buckets завершена успешно ===");
         } catch (Exception e) {
-            log.error("=== КРИТИЧЕСКАЯ ОШИБКА при инициализации MinIO buckets ===", e);
-            log.error("Приложение продолжит работу, но buckets будут созданы при первой операции с файлами");
-            // НЕ бросаем исключение, чтобы приложение могло запуститься
-            // Buckets будут созданы автоматически при первой операции через ensureBucketExists
+            log.error("=== КРИТИЧЕСКАЯ ОШИБКА при инициализации MinIO ===", e);
+            log.error("Не удалось подключиться к MinIO или инициализировать buckets");
+            log.error("Убедитесь, что MinIO запущен и доступен по адресу: {}", minioUrl);
+            log.error("Проверьте настройки подключения в application.properties:");
+            log.error("  - minio.url");
+            log.error("  - minio.access-key");
+            log.error("  - minio.secret-key");
+            log.error("Приложение не может быть запущено без подключения к MinIO");
+            // Бросаем исключение, чтобы остановить запуск приложения
+            throw new RuntimeException("КРИТИЧЕСКАЯ ОШИБКА: Не удалось подключиться к MinIO. Приложение не может быть запущено.", e);
         }
     }
 

@@ -139,13 +139,10 @@ export function UsersManagement({ isDarkTheme }) {
         );
         
         try {
-            console.log('[UsersManagement] Начинаем изменение роли, userId:', userId, 'newRole:', newRole);
             setRoleChanging(userId);
             await adminAPI.updateUserRole(userId, newRole);
-            console.log('[UsersManagement] Роль успешно изменена');
             // Обновляем список пользователей для синхронизации с сервером
             await loadUsers();
-            console.log('[UsersManagement] Список пользователей обновлен');
         } catch (err) {
             console.error('[UsersManagement] Ошибка при изменении роли:', err);
             alert(err.message || 'Ошибка при изменении роли');

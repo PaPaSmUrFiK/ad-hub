@@ -1,12 +1,5 @@
 import { Bell, Heart, User, Plus, LogIn, Moon, Sun, LogOut, Store, Shield, CheckSquare } from 'lucide-react';
 import { Button } from './ui/button.jsx';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 
 export function Header({
                            onLoginClick,
@@ -20,7 +13,9 @@ export function Header({
                            onNavigate,
                            hideCreateButton = false,
                            isAdmin = false,
-                           isModerator = false
+                           isModerator = false,
+                           unreadCount = 0,
+                           hasNotifications = false
                        }) {
     const bgColor = isDarkTheme ? 'bg-neutral-900/95 backdrop-blur-sm' : 'bg-stone-50/95 backdrop-blur-sm';
     const borderColor = isDarkTheme ? 'border-neutral-800' : 'border-stone-200';
@@ -65,8 +60,8 @@ export function Header({
                             >
                                 Категории
                             </button>
-                            {/* Вкладка "Модерация" показывается для модераторов и администраторов */}
-                            {isAuthenticated && isModerator && (
+                            {/* Вкладка "Модерация" показывается только для модераторов (не для администраторов) */}
+                            {isAuthenticated && isModerator && !isAdmin && (
                                 <button
                                     onClick={() => onNavigate?.('moderation')}
                                     className={`px-4 py-2 flex items-center gap-2 ${currentPage === 'moderation' ? activeLinkColor : linkColor} ${hoverLinkColor} transition-colors border-b-2 ${currentPage === 'moderation' ? '' : 'border-transparent'}`}
@@ -102,169 +97,56 @@ export function Header({
 
                         {isAuthenticated ? (
                             <>
-                                {/* Для администратора показываем все элементы, как и для обычных пользователей */}
-                                {isAdmin ? (
-                                    <>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'} relative`}
-                                            onClick={() => onNavigate?.('notifications')}
-                                        >
-                                            <Bell className="h-5 w-5" />
-                                            <span className={`absolute top-1 right-1 w-2 h-2 ${isDarkTheme ? 'bg-orange-500' : 'bg-teal-500'} rounded-full`}></span>
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
-                                            onClick={onFavoritesClick}
-                                        >
-                                            <Heart className="h-5 w-5" />
-                                        </Button>
-
-                                        {/* User Dropdown Menu для администратора - с профилем, избранным и панелью администратора */}
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className={`${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
-                                                >
-                                                    <User className="h-5 w-5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent 
-                                                align="end"
-                                                className={isDarkTheme ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-stone-200'}
-                                            >
-                                                <DropdownMenuItem
-                                                    onClick={() => onNavigate?.('profile')}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <User className="h-4 w-4 mr-2" />
-                                                    Профиль
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={onFavoritesClick}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <Heart className="h-4 w-4 mr-2" />
-                                                    Избранное
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => onNavigate?.('admin')}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <Shield className="h-4 w-4 mr-2" />
-                                                    Панель администратора
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => onNavigate?.('notifications')}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <Bell className="h-4 w-4 mr-2" />
-                                                    Уведомления
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator className={isDarkTheme ? 'bg-neutral-700' : 'bg-stone-200'} />
-                                                <DropdownMenuItem
-                                                    onClick={onLogout}
-                                                    className={isDarkTheme ? 'text-red-400 hover:bg-neutral-700 hover:text-red-300' : 'text-red-600 hover:bg-stone-100 hover:text-red-700'}
-                                                >
-                                                    <LogOut className="h-4 w-4 mr-2" />
-                                                    Выйти
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-
-                                        {!hideCreateButton && (
-                                            <Button
-                                                className={`${buttonBg} text-white shadow-md`}
-                                                onClick={() => onNavigate?.('create-listing')}
-                                            >
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Разместить
-                                            </Button>
-                                        )}
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* Для обычных пользователей показываем все элементы */}
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'} relative`}
-                                            onClick={() => onNavigate?.('notifications')}
-                                        >
-                                            <Bell className="h-5 w-5" />
-                                            <span className={`absolute top-1 right-1 w-2 h-2 ${isDarkTheme ? 'bg-orange-500' : 'bg-teal-500'} rounded-full`}></span>
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
-                                            onClick={onFavoritesClick}
-                                        >
-                                            <Heart className="h-5 w-5" />
-                                        </Button>
-
-                                        {/* User Dropdown Menu для обычных пользователей */}
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className={`${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
-                                                >
-                                                    <User className="h-5 w-5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent 
-                                                align="end"
-                                                className={isDarkTheme ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-stone-200'}
-                                            >
-                                                <DropdownMenuItem
-                                                    onClick={() => onNavigate?.('profile')}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <User className="h-4 w-4 mr-2" />
-                                                    Профиль
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={onFavoritesClick}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <Heart className="h-4 w-4 mr-2" />
-                                                    Избранное
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => onNavigate?.('notifications')}
-                                                    className={isDarkTheme ? 'text-neutral-300 hover:bg-neutral-700' : 'text-stone-700 hover:bg-stone-100'}
-                                                >
-                                                    <Bell className="h-4 w-4 mr-2" />
-                                                    Уведомления
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator className={isDarkTheme ? 'bg-neutral-700' : 'bg-stone-200'} />
-                                                <DropdownMenuItem
-                                                    onClick={onLogout}
-                                                    className={isDarkTheme ? 'text-red-400 hover:bg-neutral-700 hover:text-red-300' : 'text-red-600 hover:bg-stone-100 hover:text-red-700'}
-                                                >
-                                                    <LogOut className="h-4 w-4 mr-2" />
-                                                    Выйти
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-
-                                        {!hideCreateButton && (
-                                            <Button
-                                                className={`${buttonBg} text-white shadow-md`}
-                                                onClick={() => onNavigate?.('create-listing')}
-                                            >
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Разместить
-                                            </Button>
-                                        )}
-                                    </>
+                                {/* Уведомления */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'} relative`}
+                                    onClick={() => onNavigate?.('notifications')}
+                                >
+                                    <Bell className="h-5 w-5" />
+                                    {(unreadCount > 0 || hasNotifications) && (
+                                        <span className={`absolute top-1 right-1 w-2 h-2 ${isDarkTheme ? 'bg-orange-500' : 'bg-teal-500'} rounded-full`}></span>
+                                    )}
+                                </Button>
+                                {/* Избранное */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`hidden sm:flex ${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
+                                    onClick={onFavoritesClick}
+                                >
+                                    <Heart className="h-5 w-5" />
+                                </Button>
+                                {/* Профиль */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`${isDarkTheme ? 'text-neutral-300 hover:text-orange-400 hover:bg-neutral-800' : 'text-stone-600 hover:text-teal-600 hover:bg-stone-100'}`}
+                                    onClick={() => onNavigate?.('profile')}
+                                >
+                                    <User className="h-5 w-5" />
+                                </Button>
+                                {/* Выход */}
+                                <Button
+                                    variant="outline"
+                                    className={isDarkTheme
+                                        ? 'text-neutral-200 border-neutral-700 hover:bg-neutral-800'
+                                        : 'text-stone-700 border-stone-300 hover:bg-stone-100'}
+                                    onClick={onLogout}
+                                >
+                                    <LogOut className="h-4 w-4 mr-2" />
+                                    Выйти
+                                </Button>
+                                {/* Разместить */}
+                                {!hideCreateButton && (
+                                    <Button
+                                        className={`${buttonBg} text-white shadow-md`}
+                                        onClick={() => onNavigate?.('create-listing')}
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Разместить
+                                    </Button>
                                 )}
                             </>
                         ) : (

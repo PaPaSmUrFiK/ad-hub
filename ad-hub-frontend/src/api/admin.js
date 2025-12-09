@@ -115,5 +115,11 @@ export const adminAPI = {
             method: 'POST',
         });
     },
+
+    deleteAd: async (adId) => {
+        return await fetchAPI(`/api/admin/ads/${adId}`, {
+            method: 'DELETE',
+        });
+    },
 };
 

@@ -73,7 +73,7 @@ export function ModerationPage({
     const buttonBg = isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700';
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen flex flex-col ${bgColor}`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -88,6 +88,7 @@ export function ModerationPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6">
                     <h1 className={`${textColor} text-3xl font-bold mb-2`}>Модерация объявлений</h1>
@@ -171,6 +172,7 @@ export function ModerationPage({
                     </>
                 )}
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

@@ -103,25 +103,56 @@ public class FileStorageService {
                 }
             }
             
+            log.info("Получение URL для файла: bucket='{}', файл='{}'", bucketName, fileName);
             ensureBucketExists(bucketName);
             
-            // Проверяем существование файла
-            try {
-                minioClient.statObject(
-                        StatObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(fileName)
-                                .build()
-                );
-            } catch (ErrorResponseException e) {
-                if (e.errorResponse().code().equals("NoSuchKey")) {
-                    log.warn("Файл не найден в MinIO: bucket='{}', файл='{}'", bucketName, fileName);
-                    return null;
+            // Проверяем существование файла с повторными попытками
+            // (файл может быть еще не полностью обработан MinIO сразу после загрузки)
+            int maxRetries = 3;
+            boolean fileExists = false;
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    minioClient.statObject(
+                            StatObjectArgs.builder()
+                                    .bucket(bucketName)
+                                    .object(fileName)
+                                    .build()
+                    );
+                    fileExists = true;
+                    log.info("Файл найден в MinIO: bucket='{}', файл='{}' (попытка {}/{})", bucketName, fileName, attempt, maxRetries);
+                    break;
+                } catch (ErrorResponseException e) {
+                    if (e.errorResponse().code().equals("NoSuchKey")) {
+                        if (attempt < maxRetries) {
+                            log.warn("Файл не найден в MinIO (попытка {}/{}), повторяем через 500мс: bucket='{}', файл='{}'", 
+                                    attempt, maxRetries, bucketName, fileName);
+                            try {
+                                Thread.sleep(500); // Небольшая задержка перед повторной попыткой
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                log.error("Прервано при ожидании перед повторной попыткой проверки файла");
+                                return null;
+                            }
+                        } else {
+                            log.error("Файл не найден в MinIO после {} попыток: bucket='{}', файл='{}'", maxRetries, bucketName, fileName);
+                            return null;
+                        }
+                    } else {
+                        log.error("Ошибка MinIO при проверке файла: bucket='{}', файл='{}', код: {}", 
+                                bucketName, fileName, e.errorResponse().code(), e);
+                        throw e;
+                    }
                 }
-                throw e;
+            }
+            
+            if (!fileExists) {
+                log.error("Не удалось подтвердить существование файла после {} попыток: bucket='{}', файл='{}'", 
+                        maxRetries, bucketName, fileName);
+                return null;
             }
 
-            return minioClient.getPresignedObjectUrl(
+            String presignedUrl = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucketName)
@@ -129,8 +160,11 @@ public class FileStorageService {
                             .expiry(7, TimeUnit.DAYS)
                             .build()
             );
+            
+            log.info("Presigned URL успешно получен для файла: bucket='{}', файл='{}'", bucketName, fileName);
+            return presignedUrl;
         } catch (Exception e) {
-            log.error("Ошибка получения URL файла: {}", e.getMessage());
+            log.error("Ошибка получения URL файла '{}': {}", filePath, e.getMessage(), e);
             return null; // Возвращаем null вместо исключения для более мягкой обработки
         }
     }

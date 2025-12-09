@@ -22,9 +22,7 @@ export function StatisticsPanel({ isDarkTheme }) {
         try {
             setLoading(true);
             setError('');
-            console.log('[StatisticsPanel] Загрузка статистики...');
             const data = await adminAPI.getSearchStatistics();
-            console.log('[StatisticsPanel] Получены данные статистики:', data);
             
             // Проверяем, что данные получены
             if (!data) {

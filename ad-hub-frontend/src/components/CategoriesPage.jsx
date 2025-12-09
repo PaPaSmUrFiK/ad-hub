@@ -81,7 +81,7 @@ export function CategoriesPage({
   };
 
   return (
-    <div className={`min-h-screen ${bgColor}`}>
+    <div className={`min-h-screen flex flex-col ${bgColor}`}>
       <Header
         onLoginClick={onLoginClick}
         onRegisterClick={onLoginClick}
@@ -96,6 +96,7 @@ export function CategoriesPage({
         isModerator={isModerator}
       />
 
+      <main className="flex-1">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className={`${textColor} mb-2 text-3xl font-bold`}>Все категории</h1>
@@ -156,6 +157,7 @@ export function CategoriesPage({
           </div>
         )}
       </div>
+      </main>
 
       <Footer isDarkTheme={isDarkTheme} />
     </div>

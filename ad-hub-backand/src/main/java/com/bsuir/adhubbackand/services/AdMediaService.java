@@ -55,15 +55,32 @@ public class AdMediaService {
         String fileName = generateMediaFileName(file);
         log.info("Сгенерировано имя файла: {}", fileName);
         
-        String storedFileName = fileStorageService.uploadFile(file, FileStorageService.ADS_MEDIA_FOLDER, fileName);
-        log.info("Файл загружен в хранилище: {}", storedFileName);
-        
-        String fileUrl = fileStorageService.getFileUrl(storedFileName);
-        log.info("Получен URL файла: {}", fileUrl);
+        String fileUrl;
+        try {
+            String storedFileName = fileStorageService.uploadFile(file, FileStorageService.ADS_MEDIA_FOLDER, fileName);
+            log.info("Файл загружен в хранилище: {}", storedFileName);
+            
+            // Небольшая задержка перед получением URL, чтобы MinIO успел обработать файл
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Прервано ожидание перед получением URL файла");
+            }
+            
+            fileUrl = fileStorageService.getFileUrl(storedFileName);
+            log.info("Получен URL файла: {}", fileUrl != null ? fileUrl.substring(0, Math.min(100, fileUrl.length())) + "..." : "null");
 
-        if (fileUrl == null) {
-            log.error("Не удалось получить URL для файла: {}", storedFileName);
-            throw new FileUploadException("Не удалось получить URL загруженного файла");
+            if (fileUrl == null) {
+                log.error("Не удалось получить URL для файла: {}", storedFileName);
+                throw new FileUploadException("Не удалось получить URL загруженного файла. Файл может быть еще не обработан MinIO.");
+            }
+        } catch (FileUploadException e) {
+            log.error("Ошибка при загрузке файла в MinIO: {}", e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Неожиданная ошибка при загрузке файла: {}", e.getMessage(), e);
+            throw new FileUploadException("Не удалось загрузить файл: " + e.getMessage(), e);
         }
 
         // Определяем порядок отображения - используем синхронизацию для избежания race condition

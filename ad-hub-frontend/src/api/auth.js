@@ -37,16 +37,12 @@ async function fetchAPI(endpoint, options = {}) {
     }
 
     try {
-        console.log('fetchAPI: отправка запроса на', url, 'с конфигом:', config);
         const response = await fetch(url, config);
-        
-        console.log('fetchAPI: получен ответ со статусом', response.status);
         
         if (!response.ok) {
             let errorData;
             try {
                 errorData = await response.json();
-                console.log('fetchAPI: данные ошибки:', errorData);
             } catch {
                 errorData = { message: `Ошибка сервера: ${response.status} ${response.statusText}` };
             }
@@ -58,16 +54,14 @@ async function fetchAPI(endpoint, options = {}) {
             
             // Обработка ошибок авторизации (401 Unauthorized)
             if (response.status === 401) {
-                throw new Error(errorData.message || 'Неверный email или пароль');
+                throw new Error(errorData.message || 'Неверный логин или пароль');
             }
             
             // Обработка других ошибок
             throw new Error(errorData.message || `Ошибка: ${response.status}`);
         }
 
-        const jsonData = await response.json();
-        console.log('fetchAPI: успешный ответ:', jsonData);
-        return jsonData;
+        return await response.json();
     } catch (error) {
         console.error('fetchAPI: ошибка:', error);
         if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -81,15 +75,11 @@ async function fetchAPI(endpoint, options = {}) {
 export const authAPI = {
     // Регистрация
     register: async (registerData) => {
-        console.log('authAPI.register вызван с данными:', { ...registerData, password: '***' });
-        
         try {
             const response = await fetchAPI('/auth/register', {
                 method: 'POST',
                 body: JSON.stringify(registerData),
             });
-            
-            console.log('Ответ от fetchAPI:', response);
             
             // Проверяем наличие токенов в ответе
             if (!response || (!response.accessToken && !response.refreshToken)) {
@@ -100,7 +90,6 @@ export const authAPI = {
             // Сохраняем токены
             if (response.accessToken && response.refreshToken) {
                 tokenStorage.setTokens(response.accessToken, response.refreshToken);
-                console.log('Токены успешно сохранены в localStorage');
             } else {
                 console.error('Неполные данные авторизации получены от сервера:', response);
                 throw new Error('Неполные данные авторизации получены от сервера');
@@ -122,15 +111,11 @@ export const authAPI = {
 
     // Вход
     login: async (email, password) => {
-        console.log('authAPI.login вызван с email:', email);
-        
         try {
             const response = await fetchAPI('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ email, password }),
             });
-            
-            console.log('Ответ от fetchAPI:', response);
             
             // Проверяем наличие токенов в ответе
             if (!response || (!response.accessToken && !response.refreshToken)) {
@@ -141,7 +126,6 @@ export const authAPI = {
             // Сохраняем токены
             if (response.accessToken && response.refreshToken) {
                 tokenStorage.setTokens(response.accessToken, response.refreshToken);
-                console.log('Токены успешно сохранены в localStorage');
             } else {
                 console.error('Неполные данные авторизации получены от сервера:', response);
                 throw new Error('Неполные данные авторизации получены от сервера');

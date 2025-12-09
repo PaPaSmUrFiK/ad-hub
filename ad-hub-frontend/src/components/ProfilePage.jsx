@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import { User, MapPin, Star, Package, Plus, Edit, Settings, Camera, Lock, Upload, Loader2 } from 'lucide-react';
+import { User, MapPin, Star, Package, Plus, Edit, Settings, Camera, Lock, Upload, Loader2, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -41,6 +41,7 @@ export function ProfilePage({
     const [draftAds, setDraftAds] = useState([]);
     const [archivedAds, setArchivedAds] = useState([]);
     const [publishingAdId, setPublishingAdId] = useState(null);
+    const [deletingDraftId, setDeletingDraftId] = useState(null);
     const [favoriteAdIds, setFavoriteAdIds] = useState(new Set());
     const [stats, setStats] = useState({
         activeCount: 0,
@@ -109,6 +110,26 @@ export function ProfilePage({
             setError(err.message || 'Не удалось опубликовать объявление');
         } finally {
             setPublishingAdId(null);
+        }
+    };
+
+    const handleDeleteDraft = async (adId) => {
+        if (!window.confirm('Вы уверены, что хотите удалить этот черновик?')) {
+            return;
+        }
+
+        try {
+            setDeletingDraftId(adId);
+            setError('');
+            await adsAPI.deleteAd(adId);
+            // Перезагружаем данные профиля
+            await loadProfileData();
+            alert('Черновик удален');
+        } catch (err) {
+            console.error('Ошибка при удалении черновика:', err);
+            setError(err.message || 'Не удалось удалить черновик');
+        } finally {
+            setDeletingDraftId(null);
         }
     };
 
@@ -771,6 +792,19 @@ export function ProfilePage({
                                                                     📝 Черновик
                                                                 </span>
                                                             </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDeleteDraft(ad.id)}
+                                                                disabled={deletingDraftId === ad.id}
+                                                                className={`${isDarkTheme ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+                                                            >
+                                                                {deletingDraftId === ad.id ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                )}
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 </div>

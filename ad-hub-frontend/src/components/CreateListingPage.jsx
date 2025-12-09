@@ -99,13 +99,6 @@ export function CreateListingPage({
                     // Убеждаемся, что категория существует в списке категорий
                     const categoryIdStr = adDetails.categoryId ? adDetails.categoryId.toString() : '';
                     const categoryExists = categories.some(cat => cat.id.toString() === categoryIdStr);
-                    
-                    console.log('[CreateListingPage] Загрузка черновика:', {
-                        categoryId: adDetails.categoryId,
-                        categoryIdStr,
-                        categoryExists,
-                        categoriesCount: categories.length
-                    });
 
                     // Заполняем форму данными из черновика
                     setFormData({
@@ -300,22 +293,13 @@ export function CreateListingPage({
                 status: isDraft ? 'DRAFT' : 'ON_MODERATION',
             };
 
-            console.log('[CreateListingPage] Отправка данных:', {
-                editAdId,
-                isDraft,
-                status: adData.status,
-                adData
-            });
-
             let createdAd;
             if (editAdId) {
                 // Обновляем существующее объявление
                 createdAd = await adsAPI.updateAd(editAdId, adData);
-                console.log('[CreateListingPage] Объявление обновлено:', createdAd);
             } else {
                 // Создаем новое объявление
                 createdAd = await adsAPI.createAd(adData);
-                console.log('Объявление создано:', createdAd);
             }
             
             // Загружаем изображения (если есть)
@@ -323,9 +307,7 @@ export function CreateListingPage({
             if (images.length > 0) {
                 for (let i = 0; i < images.length; i++) {
                     try {
-                        console.log(`Загрузка изображения ${i + 1}/${images.length}...`);
-                        const mediaResult = await adsAPI.uploadMedia(createdAd.id, images[i]);
-                        console.log(`Изображение ${i + 1} успешно загружено:`, mediaResult);
+                        await adsAPI.uploadMedia(createdAd.id, images[i]);
                     } catch (mediaError) {
                         console.error(`Ошибка при загрузке изображения ${i + 1}:`, mediaError);
                         const fileName = images[i].name || `Изображение ${i + 1}`;
@@ -364,7 +346,7 @@ export function CreateListingPage({
     };
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen flex flex-col ${bgColor}`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -380,6 +362,7 @@ export function CreateListingPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <Button
                     variant="ghost"
@@ -672,6 +655,7 @@ export function CreateListingPage({
                     </form>
                 </div>
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

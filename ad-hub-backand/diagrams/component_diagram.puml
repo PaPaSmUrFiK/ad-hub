@@ -1,0 +1,275 @@
+@startuml Архитектура_приложения
+
+left to right direction
+
+skinparam componentStyle rectangle
+
+skinparam shadowing true
+
+skinparam roundcorner 12
+
+skinparam dpi 150
+
+skinparam defaultFontName "Segoe UI"
+
+skinparam defaultFontSize 13
+
+' ================== КЛИЕНТСКАЯ ЧАСТЬ ==================
+
+package "Клиентская часть" {
+
+    [React Components]
+
+    [API Clients]
+
+    [Styles (CSS)]
+
+}
+
+' ================== СЕРВЕРНАЯ ЧАСТЬ ==================
+
+package "Серверная часть" {
+
+    ' ================== СЛОЙ ПРЕДСТАВЛЕНИЯ ==================
+
+    package "Presentation Layer" {
+
+        [AuthController]
+
+        [UserController]
+
+        [AdController]
+
+        [AdminController]
+
+        [CategoryController]
+
+        [NotificationController]
+
+        [FavoriteController]
+
+        [AdCommentController]
+
+        [UserRatingController]
+
+    }
+
+    ' ================== СЛОЙ БИЗНЕС-ЛОГИКИ ==================
+
+    package "Business Layer" {
+
+        [AuthService]
+
+        [UserService]
+
+        [AdService]
+
+        [AdminAdService]
+
+        [AdminUserService]
+
+        [CategoryService]
+
+        [NotificationService]
+
+        [FavoriteService]
+
+        [AdCommentService]
+
+        [AdMediaService]
+
+        [UserRatingService]
+
+        [UserAvatarService]
+
+        [FileStorageService]
+
+        [AdminStatisticsService]
+
+    }
+
+    ' ================== СЛОЙ ДАННЫХ ==================
+
+    package "Data Layer" {
+
+        [User]
+
+        [Ad]
+
+        [Category]
+
+        [Notification]
+
+        [NotificationType]
+
+        [RefreshToken]
+
+        [UserRole]
+
+        [FavoriteAd]
+
+        [AdComment]
+
+        [AdMedia]
+
+        [UserRating]
+
+        [SearchHistory]
+
+    }
+
+}
+
+' ================== СЛОЙ ХРАНИЛИЩА ==================
+
+database "PostgreSQL" as DB
+
+cloud "MinIO" as MinIO
+
+' ================== СВЯЗИ ==================
+
+' Клиентская часть → Presentation Layer
+
+[React Components] --> [API Clients]
+
+[Styles (CSS)] --> [React Components]
+
+[API Clients] --> [AuthController]
+
+[API Clients] --> [UserController]
+
+[API Clients] --> [AdController]
+
+[API Clients] --> [AdminController]
+
+[API Clients] --> [CategoryController]
+
+[API Clients] --> [NotificationController]
+
+[API Clients] --> [FavoriteController]
+
+[API Clients] --> [AdCommentController]
+
+[API Clients] --> [UserRatingController]
+
+' Presentation Layer → Business Layer
+
+[AuthController] --> [AuthService]
+
+[UserController] --> [UserService]
+
+[UserController] --> [UserAvatarService]
+
+[UserController] --> [FavoriteService]
+
+[AdController] --> [AdService]
+
+[AdController] --> [AdMediaService]
+
+[AdminController] --> [AdminAdService]
+
+[AdminController] --> [AdminUserService]
+
+[AdminController] --> [AdminStatisticsService]
+
+[CategoryController] --> [CategoryService]
+
+[NotificationController] --> [NotificationService]
+
+[FavoriteController] --> [FavoriteService]
+
+[AdCommentController] --> [AdCommentService]
+
+[UserRatingController] --> [UserRatingService]
+
+' Business Layer → Data Layer
+
+[AuthService] --> [User]
+
+[AuthService] --> [RefreshToken]
+
+[AuthService] --> [UserRole]
+
+[UserService] --> [User]
+
+[UserAvatarService] --> [User]
+
+[AdService] --> [Ad]
+
+[AdService] --> [Category]
+
+[AdService] --> [User]
+
+[AdService] --> [SearchHistory]
+
+[AdminAdService] --> [Ad]
+
+[AdminAdService] --> [Notification]
+
+[AdminUserService] --> [User]
+
+[AdminUserService] --> [UserRole]
+
+[CategoryService] --> [Category]
+
+[NotificationService] --> [Notification]
+
+[NotificationService] --> [NotificationType]
+
+[NotificationService] --> [User]
+
+[NotificationService] --> [Ad]
+
+[FavoriteService] --> [FavoriteAd]
+
+[FavoriteService] --> [Ad]
+
+[FavoriteService] --> [User]
+
+[AdCommentService] --> [AdComment]
+
+[AdCommentService] --> [Ad]
+
+[AdCommentService] --> [User]
+
+[AdMediaService] --> [AdMedia]
+
+[AdMediaService] --> [Ad]
+
+[UserRatingService] --> [UserRating]
+
+[UserRatingService] --> [User]
+
+[FileStorageService] --> MinIO
+
+[AdminStatisticsService] --> [SearchHistory]
+
+' Data Layer → Storage Layer
+
+[User] --> DB
+
+[Ad] --> DB
+
+[Category] --> DB
+
+[Notification] --> DB
+
+[NotificationType] --> DB
+
+[RefreshToken] --> DB
+
+[UserRole] --> DB
+
+[FavoriteAd] --> DB
+
+[AdComment] --> DB
+
+[AdMedia] --> DB
+
+[UserRating] --> DB
+
+[SearchHistory] --> DB
+
+@enduml
+
+

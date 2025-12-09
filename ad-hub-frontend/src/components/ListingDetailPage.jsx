@@ -8,7 +8,10 @@ import { Badge } from './ui/badge';
 import { adsAPI } from '../api/ads';
 import { favoritesAPI } from '../api/favorites';
 import { userAPI } from '../api/user';
+import { commentsAPI } from '../api/comments';
 import { getPrimaryImage, formatPrice } from '../utils/categoryUtils';
+import { useRef } from 'react';
+import { tokenStorage } from '../api/auth';
 
 export function ListingDetailPage({
                                       listingId,
@@ -33,18 +36,48 @@ export function ListingDetailPage({
     const [isPublishing, setIsPublishing] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [phoneCopied, setPhoneCopied] = useState(false);
+    const hasLoadedRef = useRef(false);
+    const hasTrackedViewRef = useRef(false);
+    const [comments, setComments] = useState([]);
+    const [commentText, setCommentText] = useState('');
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentError, setCommentError] = useState('');
 
     // Сбрасываем индекс изображения при изменении listingId
     useEffect(() => {
         setCurrentImageIndex(0);
     }, [listingId]);
 
-    // Загружаем данные объявления при монтировании
+    // Сбрасываем флаг загрузки при смене объявления
     useEffect(() => {
-        if (listingId) {
+        hasLoadedRef.current = false;
+    }, [listingId]);
+
+    // Загружаем данные объявления при монтировании/смене объявления (однократно, чтобы не удваивать просмотры)
+    useEffect(() => {
+        if (!listingId) return;
+        if (hasLoadedRef.current) return;
+        hasLoadedRef.current = true;
             loadListing();
-        }
-    }, [listingId, isAuthenticated]);
+    }, [listingId]);
+
+    // Отдельно отправляем событие просмотра (чтобы не зависеть от повторных загрузок данных)
+    useEffect(() => {
+        if (!listingId) return;
+        if (hasTrackedViewRef.current) return;
+        hasTrackedViewRef.current = true;
+
+        const trackView = async () => {
+            try {
+                // Не отправляем если не авторизован? Нам нужно считать и анонимные просмотры, поэтому отправляем всегда
+                await adsAPI.addView(listingId);
+            } catch (err) {
+                console.error('Ошибка при отправке просмотра:', err);
+            }
+        };
+
+        trackView();
+    }, [listingId]);
 
     // Загружаем ID текущего пользователя
     useEffect(() => {
@@ -54,6 +87,11 @@ export function ListingDetailPage({
             setCurrentUserId(null);
         }
     }, [isAuthenticated]);
+
+    // Загружаем комментарии при смене объявления
+    useEffect(() => {
+        loadComments();
+    }, [listingId]);
 
     // Обработка нажатий клавиш для навигации по изображениям
     // Должен быть до условных возвратов, чтобы соблюдать правила хуков
@@ -119,16 +157,6 @@ export function ListingDetailPage({
             // Обновляем isOnModeration и isOwner после загрузки
             // Они будут пересчитаны в рендере
             
-            // Проверяем, в избранном ли объявление (если пользователь авторизован)
-            if (isAuthenticated) {
-                try {
-                    const favorites = await favoritesAPI.getFavorites();
-                    const isInFavorites = favorites.favorites?.some(f => f.adId === listingId);
-                    setIsFavorite(isInFavorites);
-                } catch (err) {
-                    console.error('Ошибка при проверке избранного:', err);
-                }
-            }
         } catch (err) {
             console.error('Ошибка при загрузке объявления:', err);
             setError(err.message || 'Не удалось загрузить объявление');
@@ -136,6 +164,40 @@ export function ListingDetailPage({
             setLoading(false);
         }
     };
+
+    const loadComments = async () => {
+        if (!listingId) return;
+        try {
+            setCommentsLoading(true);
+            setCommentError('');
+            const data = await commentsAPI.getComments(listingId);
+            setComments(data || []);
+        } catch (err) {
+            console.error('Ошибка при загрузке комментариев:', err);
+            setCommentError(err.message || 'Не удалось загрузить комментарии');
+            setComments([]);
+        } finally {
+            setCommentsLoading(false);
+        }
+    };
+
+    // Проверяем статус избранного отдельно, чтобы не вызывать двойной запрос объявления
+    useEffect(() => {
+        const checkFavorite = async () => {
+            if (!isAuthenticated || !listingId) {
+                setIsFavorite(false);
+                return;
+            }
+            try {
+                const favorites = await favoritesAPI.getFavorites();
+                const isInFavorites = favorites.favorites?.some(f => f.adId === listingId);
+                setIsFavorite(Boolean(isInFavorites));
+            } catch (err) {
+                console.error('Ошибка при проверке избранного:', err);
+            }
+        };
+        checkFavorite();
+    }, [isAuthenticated, listingId]);
 
     const handleDeleteAd = async () => {
         if (!window.confirm('Вы уверены, что хотите удалить это объявление?')) {
@@ -154,6 +216,37 @@ export function ListingDetailPage({
         } finally {
             setIsDeleting(false);
         }
+    };
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+        if (!commentText.trim()) return;
+        try {
+            setCommentError('');
+            const newComment = await commentsAPI.addComment(listingId, commentText.trim());
+            setComments(prev => [newComment, ...prev]);
+            setCommentText('');
+        } catch (err) {
+            console.error('Ошибка при добавлении комментария:', err);
+            setCommentError(err.message || 'Не удалось добавить комментарий');
+        }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!window.confirm('Удалить комментарий?')) return;
+        try {
+            await commentsAPI.deleteComment(listingId, commentId);
+            setComments(prev => prev.filter(c => c.id !== commentId));
+        } catch (err) {
+            console.error('Ошибка при удалении комментария:', err);
+            setCommentError(err.message || 'Не удалось удалить комментарий');
+        }
+    };
+
+    const formatDateTime = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return d.toLocaleString();
     };
 
     const handleSaveAsDraft = async () => {
@@ -357,7 +450,7 @@ export function ListingDetailPage({
     const buttonBg = isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700';
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen ${bgColor} flex flex-col`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -372,6 +465,7 @@ export function ListingDetailPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Back Button */}
                 <Button
@@ -684,7 +778,75 @@ export function ListingDetailPage({
                         </div>
                     </div>
                 </div>
+
+                {/* Комментарии */}
+                <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">
+                        <div className={`${cardBg} rounded-xl border ${borderColor} p-6 space-y-4`}>
+                            <h3 className={`text-xl font-semibold ${textColor}`}>Комментарии</h3>
+
+                            {isAuthenticated ? (
+                                <form onSubmit={handleAddComment} className="space-y-3">
+                                    <textarea
+                                        value={commentText}
+                                        onChange={(e) => setCommentText(e.target.value)}
+                                        className={`w-full rounded-lg border ${borderColor} ${isDarkTheme ? 'bg-neutral-900 text-neutral-100' : 'bg-white text-stone-900'} px-3 py-2`}
+                                        rows={3}
+                                        placeholder="Оставьте комментарий..."
+                                    />
+                                    <div className="flex justify-between items-center">
+                                        {commentError && (
+                                            <span className={`${isDarkTheme ? 'text-red-400' : 'text-red-600'} text-sm`}>{commentError}</span>
+                                        )}
+                                        <Button
+                                            type="submit"
+                                            disabled={!commentText.trim()}
+                                            className={`${buttonBg} text-white`}
+                                        >
+                                            Отправить
+                                        </Button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <div className={`${isDarkTheme ? 'text-neutral-300' : 'text-stone-700'}`}>
+                                    Авторизуйтесь, чтобы оставить комментарий.
+                                </div>
+                            )}
+
+                            {commentsLoading ? (
+                                <div className={`${isDarkTheme ? 'text-neutral-300' : 'text-stone-700'}`}>Загрузка комментариев...</div>
+                            ) : comments.length === 0 ? (
+                                <div className={`${isDarkTheme ? 'text-neutral-400' : 'text-stone-600'}`}>Комментариев пока нет</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {comments.map((c) => (
+                                        <div key={c.id} className={`rounded-lg border ${borderColor} ${cardBg} p-4`}>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div className={`font-semibold ${textColor}`}>{c.userUsername || c.userName || 'Пользователь'}</div>
+                                                    <div className={`${textMuted} text-xs`}>{formatDateTime(c.createdAt)}</div>
+                                                </div>
+                                                {currentUserId && c.userId === currentUserId && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className={isDarkTheme ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-700'}
+                                                        onClick={() => handleDeleteComment(c.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                            <p className={`${textColor} mt-2 whitespace-pre-wrap`}>{c.commentText}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

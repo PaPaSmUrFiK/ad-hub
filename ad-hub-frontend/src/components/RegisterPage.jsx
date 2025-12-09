@@ -189,9 +189,7 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                 phone: formData.phone?.trim() || null,
             };
 
-            console.log('Попытка регистрации с данными:', { ...registerData, password: '***' });
             const response = await authAPI.register(registerData);
-            console.log('Ответ от сервера:', response);
             
             // Проверяем, что токены были сохранены
             const accessToken = localStorage.getItem('accessToken');
@@ -204,14 +202,10 @@ export function RegisterPage({ onBack, onLoginClick, onRegister }) {
                 return;
             }
             
-            console.log('Токены успешно сохранены');
-            
             // Вызываем callback для обновления состояния приложения
             // Используем await, чтобы дождаться завершения обновления состояния
             if (onRegister) {
-                console.log('Вызываем onRegister callback');
                 await onRegister();
-                console.log('onRegister callback завершен');
             } else {
                 console.warn('onRegister callback не передан');
             }

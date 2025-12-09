@@ -39,10 +39,8 @@ export async function fetchWithAuth(endpoint, options = {}) {
     // Проверяем токен перед отправкой запроса
     const accessToken = tokenStorage.getAccessToken();
     if (accessToken && isTokenExpiredOrExpiringSoon(accessToken)) {
-        console.log('Токен истек или скоро истечет, обновляем перед запросом:', endpoint);
         try {
             await refreshAccessToken();
-            console.log('Токен успешно обновлен перед запросом');
         } catch (refreshError) {
             console.error('Не удалось обновить токен перед запросом:', refreshError);
             // Продолжаем выполнение - если запрос вернет 401, попробуем обновить еще раз
@@ -50,21 +48,28 @@ export async function fetchWithAuth(endpoint, options = {}) {
     }
     
     // Первая попытка запроса
-    let response = await makeRequest(url, options);
+    let response;
+    try {
+        response = await makeRequest(url, options);
+    } catch (networkError) {
+        // Сетевые ошибки (сервер недоступен)
+        if (networkError instanceof TypeError || (networkError.message && networkError.message.includes('fetch'))) {
+            const message = 'Сервер недоступен. Проверьте подключение или попробуйте позже.';
+            window.dispatchEvent(new CustomEvent('fatal:error', { detail: message }));
+            throw new Error(message);
+        }
+        throw networkError;
+    }
     
     // Если получили 401, пытаемся обновить токен
     if (response.status === 401) {
-        console.log('Получен 401, пытаемся обновить токен для запроса:', endpoint);
-        
         try {
             // Обновляем токен
             const refreshResult = await refreshAccessToken();
-            console.log('Токен успешно обновлен, повторяем запрос:', endpoint);
             
             // Повторяем запрос с новым токеном
             // ВАЖНО: makeRequest снова получит токен из tokenStorage, который уже обновлен
             response = await makeRequest(url, options);
-            console.log('Повторный запрос после обновления токена, статус:', response.status);
             
             // Если снова 401, значит refresh token тоже истек или что-то не так
             if (response.status === 401) {
@@ -105,6 +110,13 @@ export async function fetchWithAuth(endpoint, options = {}) {
         if (response.status === 413 || response.status === 417) {
             // 413 Payload Too Large или 417 Expectation Failed (для MaxUploadSizeExceededException)
             throw new Error(errorData.message || 'Размер загружаемого файла превышает максимально допустимый размер');
+        }
+        
+        // Все ошибки 5xx считаем критическими
+        if (response.status >= 500) {
+            const message = errorData.message || `Критическая ошибка сервера: ${response.status}`;
+            window.dispatchEvent(new CustomEvent('fatal:error', { detail: message }));
+            throw new Error(message);
         }
         
         throw new Error(errorData.message || `Ошибка: ${response.status}`);
@@ -181,9 +193,6 @@ async function makeRequest(url, options = {}) {
     const accessToken = tokenStorage.getAccessToken();
     if (accessToken) {
         config.headers['Authorization'] = `Bearer ${accessToken}`;
-        console.log('Добавлен токен авторизации в запрос:', url.substring(0, 50) + '...');
-    } else {
-        console.log('Токен авторизации отсутствует для запроса:', url.substring(0, 50) + '...');
     }
     
     return await fetch(url, config);
@@ -207,7 +216,6 @@ async function refreshAccessToken() {
                 throw new Error('Refresh token не найден');
             }
             
-            console.log('Обновление access token...');
             const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 headers: {
@@ -228,11 +236,9 @@ async function refreshAccessToken() {
             }
             
             const data = await response.json();
-            console.log('Ответ от сервера при обновлении токена:', data);
             
             if (data.accessToken && data.refreshToken) {
                 tokenStorage.setTokens(data.accessToken, data.refreshToken);
-                console.log('Токены успешно обновлены и сохранены в localStorage');
                 return data;
             } else {
                 console.error('Сервер не вернул новые токены. Ответ:', data);

@@ -40,9 +40,7 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
         setLoading(true);
 
         try {
-            console.log('Попытка входа с email:', email.trim());
             const response = await authAPI.login(email.trim(), password);
-            console.log('Ответ от сервера:', response);
             
             // Проверяем, что токены были сохранены
             const accessToken = localStorage.getItem('accessToken');
@@ -55,14 +53,10 @@ export function LoginPage({ onBack, onRegisterClick, onLogin }) {
                 return;
             }
             
-            console.log('Токены успешно сохранены');
-            
             // Вызываем callback для обновления состояния приложения
             // Используем await, чтобы дождаться завершения обновления состояния
             if (onLogin) {
-                console.log('Вызываем onLogin callback');
                 await onLogin();
-                console.log('onLogin callback завершен');
             } else {
                 console.warn('onLogin callback не передан');
             }

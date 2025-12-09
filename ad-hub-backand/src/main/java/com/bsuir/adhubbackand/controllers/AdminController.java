@@ -55,6 +55,12 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @DeleteMapping("/ads/{id}")
+    public ResponseEntity<ModerationActionResponse> deleteAd(@PathVariable Long id) {
+        ModerationActionResponse response = adminAdService.deleteAd(id);
+        return ResponseEntity.ok(response);
+    }
+
     // Управление пользователями
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")

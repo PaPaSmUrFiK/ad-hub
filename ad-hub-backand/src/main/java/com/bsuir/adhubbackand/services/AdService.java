@@ -16,9 +16,13 @@ import com.bsuir.adhubbackand.model.enums.AdStatus;
 import com.bsuir.adhubbackand.model.enums.SortBy;
 import com.bsuir.adhubbackand.model.entities.SearchHistory;
 import com.bsuir.adhubbackand.repositories.AdRepository;
+import com.bsuir.adhubbackand.repositories.AdMediaRepository;
+import com.bsuir.adhubbackand.repositories.AdCommentRepository;
+import com.bsuir.adhubbackand.repositories.FavoriteAdRepository;
 import com.bsuir.adhubbackand.repositories.CategoryRepository;
 import com.bsuir.adhubbackand.repositories.SearchHistoryRepository;
 import com.bsuir.adhubbackand.repositories.UserRepository;
+import com.bsuir.adhubbackand.model.entities.AdMedia;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,8 +46,12 @@ public class AdService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final SearchHistoryRepository searchHistoryRepository;
+    private final NotificationService notificationService;
+    private final FileStorageService fileStorageService;
+    private final AdMediaRepository adMediaRepository;
+    private final FavoriteAdRepository favoriteAdRepository;
+    private final AdCommentRepository adCommentRepository;
     
-    // ThreadLocal для отслеживания уже залогированных запросов в рамках одного HTTP-запроса
     private static final ThreadLocal<java.util.Set<String>> loggedQueries = new ThreadLocal<java.util.Set<String>>() {
         @Override
         protected java.util.Set<String> initialValue() {
@@ -59,10 +67,8 @@ public class AdService {
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new CategoryNotFoundException(request.categoryId()));
 
-        // Определяем статус: если передан в запросе - используем его, иначе ON_MODERATION
         AdStatus status = request.status() != null ? request.status() : AdStatus.ON_MODERATION;
 
-        // Для черновика описание может быть пустым, для публикации - обязательно
         String description = request.description();
         if (description == null || description.trim().isEmpty()) {
             if (status == AdStatus.DRAFT) {
@@ -87,10 +93,9 @@ public class AdService {
         Ad savedAd = adRepository.save(ad);
         log.info("Объявление создано: ID={}, пользователь={}, статус={}", savedAd.getId(), user.getEmail(), status);
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
-        savedAd.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-        savedAd.getUser().getUsername(); // Принудительная инициализация lazy связи User
-        savedAd.getCategory().getName(); // Принудительная инициализация lazy связи Category
+        savedAd.getMediaFiles().size();
+        savedAd.getUser().getUsername();
+        savedAd.getCategory().getName();
 
         return mapToResponse(savedAd);
     }
@@ -121,30 +126,32 @@ public class AdService {
                 adPage = adRepository.searchActiveAds(searchQuery.trim(), pageable);
             }
         } else if (categoryId != null) {
-            adPage = adRepository.findByCategoryId(categoryId, pageable);
+            adPage = adRepository.findByCategoryIdAndStatus(categoryId, AdStatus.ACTIVE, pageable);
         } else if (location != null && !location.trim().isEmpty()) {
             adPage = adRepository.findActiveAdsByLocation(location.trim(), pageable);
         } else if (minPrice != null || maxPrice != null) {
             BigDecimal min = minPrice != null ? minPrice : BigDecimal.ZERO;
             BigDecimal max = maxPrice != null ? maxPrice : BigDecimal.valueOf(Long.MAX_VALUE);
             List<Ad> ads = adRepository.findActiveAdsByPriceRange(min, max);
-            // Простая пагинация для списка
             int start = (int) pageable.getOffset();
             int end = Math.min(start + pageable.getPageSize(), ads.size());
             List<Ad> pagedAds = ads.subList(Math.min(start, ads.size()), end);
             adPage = new org.springframework.data.domain.PageImpl<>(pagedAds, pageable, ads.size());
         } else if (status != null) {
-            adPage = adRepository.findByStatus(status, pageable);
+            if (status == AdStatus.DELETED) {
+                adPage = Page.empty(pageable);
+            } else {
+                adPage = adRepository.findByStatus(status, pageable);
+            }
         } else {
             adPage = adRepository.findByStatus(AdStatus.ACTIVE, pageable);
         }
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
         List<Ad> ads = adPage.getContent();
         for (Ad ad : ads) {
-            ad.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-            ad.getUser().getUsername(); // Принудительная инициализация lazy связи User
-            ad.getCategory().getName(); // Принудительная инициализация lazy связи Category
+            ad.getMediaFiles().size();
+            ad.getUser().getUsername();
+            ad.getCategory().getName();
         }
 
         List<AdResponse> content = ads.stream()
@@ -162,23 +169,45 @@ public class AdService {
         );
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public AdResponse getAdById(Long adId, Long currentUserId) {
-        // Загружаем Ad с mediaFiles, User и Category используя JOIN FETCH для избежания LazyInitializationException
         Ad ad = adRepository.findByIdWithMediaFiles(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
 
-        // Увеличиваем счетчик просмотров только если это не владелец объявления
-        if (currentUserId == null || !ad.getUser().getId().equals(currentUserId)) {
-        adRepository.incrementViewCount(adId);
+        if (ad.getStatus() == AdStatus.DELETED) {
+            throw new AdNotFoundException(adId);
         }
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
-        ad.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-        ad.getUser().getUsername(); // Принудительная инициализация lazy связи User
-        ad.getCategory().getName(); // Принудительная инициализация lazy связи Category
+        ad.getMediaFiles().size();
+        ad.getUser().getUsername();
+        ad.getCategory().getName();
 
         return mapToResponse(ad);
+    }
+
+    @Transactional
+    public void incrementViewCountSafe(Long adId, Long currentUserId) {
+        try {
+            incrementViewCount(adId, currentUserId);
+        } catch (Exception e) {
+            log.warn("Не удалось инкрементировать просмотры для adId={}, userId={}: {}", adId, currentUserId, e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void incrementViewCount(Long adId, Long currentUserId) {
+        Ad ad = adRepository.findById(adId)
+                .orElseThrow(() -> new AdNotFoundException(adId));
+
+        if (ad.getStatus() == AdStatus.DELETED) {
+            throw new AdNotFoundException(adId);
+        }
+
+        if (currentUserId != null && ad.getUser() != null && ad.getUser().getId().equals(currentUserId)) {
+            return;
+        }
+
+        adRepository.incrementViewCount(adId);
     }
 
     @Transactional(readOnly = true)
@@ -188,7 +217,6 @@ public class AdService {
             Integer page,
             Integer size
     ) {
-        // Проверяем существование пользователя
         if (!userRepository.existsById(userId)) {
             throw new UserNotFoundException(userId);
         }
@@ -201,17 +229,20 @@ public class AdService {
 
         Page<Ad> adPage;
         if (status != null) {
-            adPage = adRepository.findByUserIdAndStatus(userId, status, pageable);
+            if (status == AdStatus.DELETED) {
+                adPage = Page.empty(pageable);
+            } else {
+                adPage = adRepository.findByUserIdAndStatus(userId, status, pageable);
+            }
         } else {
-            adPage = adRepository.findByUserId(userId, pageable);
+            adPage = adRepository.findByUserIdAndStatusNot(userId, AdStatus.DELETED, pageable);
         }
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
         List<Ad> ads = adPage.getContent();
         for (Ad ad : ads) {
-            ad.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-            ad.getUser().getUsername(); // Принудительная инициализация lazy связи User
-            ad.getCategory().getName(); // Принудительная инициализация lazy связи Category
+            ad.getMediaFiles().size();
+            ad.getUser().getUsername();
+            ad.getCategory().getName();
         }
 
         List<AdResponse> content = ads.stream()
@@ -241,11 +272,9 @@ public class AdService {
             Integer size,
             Long userId
     ) {
-        // Настройка пагинации
         int pageNumber = page != null && page > 0 ? page - 1 : 0;
         int pageSize = size != null && size > 0 ? size : 20;
 
-        // Настройка сортировки
         Sort sort;
         if (sortBy != null) {
             Sort.Direction direction = "ASC".equals(sortBy.getDirection()) 
@@ -253,13 +282,11 @@ public class AdService {
                     : Sort.Direction.DESC;
             sort = Sort.by(direction, sortBy.getField());
         } else {
-            // По умолчанию сортировка по дате создания (новые сначала)
             sort = Sort.by(Sort.Direction.DESC, "createdAt");
         }
 
         Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
 
-        // Поиск с фильтрами
         Page<Ad> adPage = adRepository.searchAdsWithFilters(
                 searchQuery,
                 categoryId,
@@ -269,11 +296,8 @@ public class AdService {
                 pageable
         );
 
-        // Логируем поисковый запрос в историю (только если есть текстовый запрос)
-        // Используем ThreadLocal для предотвращения двойного сохранения в рамках одного HTTP-запроса
         if (searchQuery != null && !searchQuery.trim().isEmpty()) {
             try {
-                // Формируем текст запроса с фильтрами
                 StringBuilder queryTextBuilder = new StringBuilder(searchQuery.trim());
                 if (categoryId != null) {
                     queryTextBuilder.append(" [категория:").append(categoryId).append("]");
@@ -294,17 +318,12 @@ public class AdService {
                     fullQueryText = fullQueryText.substring(0, 1000);
                 }
                 
-                // Создаем уникальный ключ для запроса (текст + userId)
-                // ThreadLocal предотвратит двойное сохранение в рамках одного HTTP-запроса
                 String queryKey = fullQueryText + "|" + (userId != null ? userId : "null");
                 
-                // Проверяем, не был ли уже залогирован этот запрос в рамках текущего HTTP-запроса
                 java.util.Set<String> logged = loggedQueries.get();
                 if (!logged.contains(queryKey)) {
-                    // Помечаем запрос как залогированный
                     logged.add(queryKey);
                     
-                    // Дополнительная проверка: не сохраняем дубликаты за последнюю минуту
                     java.time.LocalDateTime oneMinuteAgo = java.time.LocalDateTime.now().minusMinutes(1);
                     long recentDuplicates = searchHistoryRepository.countRecentDuplicates(
                             fullQueryText, 
@@ -333,17 +352,15 @@ public class AdService {
                             fullQueryText, userId);
                 }
             } catch (Exception e) {
-                // Логируем ошибку, но не прерываем выполнение поиска
                 log.warn("Не удалось сохранить поисковый запрос в историю: {}", e.getMessage());
             }
         }
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
         List<Ad> ads = adPage.getContent();
         for (Ad ad : ads) {
-            ad.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-            ad.getUser().getUsername(); // Принудительная инициализация lazy связи User
-            ad.getCategory().getName(); // Принудительная инициализация lazy связи Category
+            ad.getMediaFiles().size();
+            ad.getUser().getUsername();
+            ad.getCategory().getName();
         }
 
         List<AdResponse> content = ads.stream()
@@ -371,16 +388,13 @@ public class AdService {
 
     @Transactional
     public AdResponse updateAd(Long adId, Long userId, UpdateAdRequest request) {
-        // Загружаем Ad с User и Category используя JOIN FETCH для избежания LazyInitializationException
         Ad ad = adRepository.findByIdWithMediaFiles(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
 
-        // Проверяем, что пользователь является владельцем объявления
         if (!ad.getUser().getId().equals(userId)) {
             throw new AccessDeniedException("Нет доступа к редактированию этого объявления");
         }
 
-        // Проверяем, что объявление можно редактировать
         if (ad.getStatus() == AdStatus.DELETED) {
             throw new AdStatusNotAllowedException("Нельзя редактировать удаленное объявление");
         }
@@ -406,43 +420,131 @@ public class AdService {
             ad.setCategory(category);
         }
 
-        // Обновляем статус, если он передан в запросе
         if (request.status() != null) {
             ad.setStatus(request.status());
-            log.info("Статус объявления изменен на: {}", request.status());
         } else {
-            // Если статус не передан, применяем логику по умолчанию:
-            // При обновлении активного или на модерации объявления - отправляем на повторную модерацию
             if (ad.getStatus() == AdStatus.ON_MODERATION || ad.getStatus() == AdStatus.ACTIVE) {
                 ad.setStatus(AdStatus.ON_MODERATION);
             }
-            // Для черновика статус не меняется, если не указан явно
         }
 
         Ad updatedAd = adRepository.save(ad);
-        log.info("Объявление обновлено: ID={}", updatedAd.getId());
 
-        // Инициализируем lazy коллекции и связи в рамках транзакции
-        updatedAd.getMediaFiles().size(); // Принудительная инициализация lazy коллекции
-        updatedAd.getUser().getUsername(); // Принудительная инициализация lazy связи User
-        updatedAd.getCategory().getName(); // Принудительная инициализация lazy связи Category
+        updatedAd.getMediaFiles().size();
+        updatedAd.getUser().getUsername();
+        updatedAd.getCategory().getName();
 
         return mapToResponse(updatedAd);
     }
 
     @Transactional
     public void deleteAd(Long adId, Long userId) {
-        Ad ad = adRepository.findById(adId)
-                .orElseThrow(() -> new AdNotFoundException(adId));
+        log.info("Начало удаления объявления: adId={}, userId={}", adId, userId);
+        
+        Ad ad = adRepository.findByIdWithMediaFiles(adId)
+                .orElseThrow(() -> {
+                    log.error("Объявление не найдено: adId={}", adId);
+                    return new AdNotFoundException(adId);
+                });
 
         // Проверяем, что пользователь является владельцем объявления
+        if (ad.getUser() == null) {
+            log.error("User is null for ad ID: {}", adId);
+            throw new IllegalStateException("Пользователь не найден для объявления ID: " + adId);
+        }
+        
         if (!ad.getUser().getId().equals(userId)) {
+            log.warn("Попытка удаления чужого объявления: adId={}, ownerId={}, userId={}", 
+                    adId, ad.getUser().getId(), userId);
             throw new AccessDeniedException("Нет доступа к удалению этого объявления");
         }
 
+        List<AdMedia> mediaFiles = adMediaRepository.findByAdId(adId);
+        log.info("Найдено медиафайлов для удаления: {}", mediaFiles.size());
+        
+        for (AdMedia media : mediaFiles) {
+            try {
+                if (media.getFileUrl() != null && !media.getFileUrl().isEmpty()) {
+                    String filePath = extractFilePathFromUrl(media.getFileUrl());
+                    if (filePath != null) {
+                        fileStorageService.deleteFile(filePath);
+                        log.info("Медиафайл удален из MinIO: {}", filePath);
+                    } else {
+                        log.warn("Не удалось извлечь путь из URL для удаления: {}", media.getFileUrl());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Ошибка при удалении медиафайла из MinIO (продолжаем): {}", e.getMessage(), e);
+            }
+        }
+        
+        adMediaRepository.deleteByAdId(adId);
+        log.info("Медиафайлы удалены из БД для объявления: adId={}", adId);
+        
+        favoriteAdRepository.deleteByAdId(adId);
+        log.info("Записи из избранного удалены для объявления: adId={}", adId);
+        
+        adCommentRepository.deactivateAllCommentsByAdId(adId);
+        log.info("Комментарии деактивированы для объявления: adId={}", adId);
+        
+        ad = adRepository.findById(adId)
+                .orElseThrow(() -> new AdNotFoundException(adId));
+        
         ad.setStatus(AdStatus.DELETED);
         adRepository.save(ad);
-        log.info("Объявление удалено: ID={}", adId);
+        log.info("Объявление помечено как удаленное: adId={}", adId);
+        
+        notificationService.sendNotificationSafe(
+                userId,
+                "AD_DELETED",
+                "Объявление удалено",
+                "Объявление \"" + ad.getTitle() + "\" было удалено.",
+                ad.getId()
+        );
+        log.info("Уведомление отправлено пользователю (safe): userId={}", userId);
+        
+        log.info("Удаление объявления завершено успешно: adId={}", adId);
+    }
+    
+    /**
+     * Извлекает путь к файлу из presigned URL для удаления из MinIO
+     */
+    private String extractFilePathFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            java.net.URL urlObj = uri.toURL();
+            String path = urlObj.getPath();
+            
+            // Убираем первый слэш если есть
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            
+            // Убираем параметры запроса
+            String query = urlObj.getQuery();
+            if (query != null && path.contains("?")) {
+                path = path.split("\\?")[0];
+            }
+            
+            // Если путь содержит bucket name (adhub-ads-media или adhub-avatars), возвращаем как есть
+            if (path.contains("adhub-")) {
+                return path; // Уже содержит bucket name
+            } else {
+                // Для обратной совместимости: если файл начинается с "ad_", это медиа объявления
+                String fileName = path.contains("/") ? path.substring(path.lastIndexOf("/") + 1) : path;
+                if (fileName.startsWith("ad_")) {
+                    // Возвращаем путь с bucket name для медиа объявлений
+                    return "adhub-ads-media/" + fileName;
+                }
+                return path;
+            }
+        } catch (Exception e) {
+            log.warn("Не удалось извлечь путь из URL: {}", url, e);
+            return null;
+        }
     }
 
     @Transactional
@@ -478,8 +580,6 @@ public class AdService {
                         log.error("Объявление не найдено: adId={}", adId);
                         return new AdNotFoundException(adId);
                     });
-
-            log.debug("Объявление загружено: adId={}, status={}, userId={}", adId, ad.getStatus(), ad.getUser() != null ? ad.getUser().getId() : "null");
 
             // Проверяем, что пользователь является владельцем объявления
             if (ad.getUser() == null) {
@@ -686,4 +786,3 @@ public class AdService {
         }
     }
 }
-

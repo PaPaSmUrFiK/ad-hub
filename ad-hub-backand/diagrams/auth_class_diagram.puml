@@ -1,0 +1,122 @@
+@startuml Авторизация - Диаграмма классов
+
+!theme plain
+skinparam linetype ortho
+skinparam defaultFontSize 22
+skinparam classFontSize 24
+skinparam classAttributeFontSize 22
+skinparam classFontStyle bold
+left to right direction
+
+class AuthController {
+    - authService: AuthService
+    + register(request: RegisterRequest): ResponseEntity<AuthResponse>
+    + login(request: LoginRequest): ResponseEntity<AuthResponse>
+    + refreshToken(request: RefreshTokenRequest): ResponseEntity<AuthResponse>
+    + logout(request: LogoutRequest): ResponseEntity<Void>
+}
+
+class AuthService {
+    + register(request: RegisterRequest): AuthResponse
+    + login(request: LoginRequest): AuthResponse
+    + refreshToken(request: RefreshTokenRequest): AuthResponse
+    + logout(request: LogoutRequest): void
+}
+
+class User {
+    - id: Long
+    - username: String
+    - email: String
+    - passwordHash: String
+    - firstName: String
+    - lastName: String
+    - phone: String
+    - avatarUrl: String
+    - role: UserRole
+    - status: UserStatus
+    - rating: BigDecimal
+    - createdAt: LocalDateTime
+    - lastLogin: LocalDateTime
+    - updatedAt: LocalDateTime
+}
+
+class UserRole {
+    - id: Long
+    - name: String
+    - createdAt: LocalDateTime
+}
+
+class RefreshToken {
+    - id: Long
+    - user: User
+    - token: String
+    - expiryDate: LocalDateTime
+    - createdAt: LocalDateTime
+}
+
+class RegisterRequest {
+    + email: String
+    + password: String
+    + username: String
+    + firstName: String
+    + lastName: String
+    + phone: String
+}
+
+class LoginRequest {
+    + email: String
+    + password: String
+}
+
+class RefreshTokenRequest {
+    + refreshToken: String
+}
+
+class LogoutRequest {
+    + refreshToken: String
+}
+
+class AuthResponse {
+    + accessToken: String
+    + refreshToken: String
+}
+
+enum UserStatus {
+    ACTIVE
+    BLOCKED
+    DELETED
+}
+
+' ========== УПРАВЛЕНИЕ ПРОЦЕССОМ ==========
+AuthController --> AuthService
+
+' ========== КОМПОЗИЦИЯ (сильная связь, владение) ==========
+RefreshToken "1" *-- "1" User
+
+' ========== АГРЕГАЦИЯ (слабая связь, использование) ==========
+User "M" o-- "1" UserRole
+
+' ========== ЗАВИСИМОСТЬ - Входные данные ==========
+AuthController ..> RegisterRequest
+AuthController ..> LoginRequest
+AuthController ..> RefreshTokenRequest
+AuthController ..> LogoutRequest
+
+AuthService ..> RegisterRequest
+AuthService ..> LoginRequest
+AuthService ..> RefreshTokenRequest
+AuthService ..> LogoutRequest
+
+' ========== ЗАВИСИМОСТЬ - Выходные данные ==========
+AuthController ..> AuthResponse
+AuthService ..> AuthResponse
+
+' ========== ЗАВИСИМОСТЬ - Работа с сущностями ==========
+AuthService ..> User
+AuthService ..> RefreshToken
+AuthService ..> UserRole
+
+' ========== ИСПОЛЬЗОВАНИЕ ENUM ==========
+User ..> UserStatus
+
+@enduml

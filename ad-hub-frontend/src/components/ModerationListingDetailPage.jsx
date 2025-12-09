@@ -88,7 +88,7 @@ export function ModerationListingDetailPage({
     };
 
     const handleReject = () => {
-        setNotificationActionType('reject');
+        setNotificationActionType('delete'); // удаляем объявление и уведомляем
         setShowNotificationForm(true);
     };
 
@@ -99,10 +99,10 @@ export function ModerationListingDetailPage({
 
     const handleNotificationSubmit = async (notificationData) => {
         try {
-            if (notificationActionType === 'reject') {
+            if (notificationActionType === 'delete') {
                 setIsRejecting(true);
-                await adminAPI.rejectAd(listingId);
-                alert('Объявление отклонено и уведомление отправлено пользователю');
+                await adminAPI.deleteAd(listingId);
+                alert('Объявление удалено и уведомление отправлено пользователю');
             } else if (notificationActionType === 'revision') {
                 setIsSendingForRevision(true);
                 await adminAPI.sendForRevision(listingId);
@@ -217,7 +217,7 @@ export function ModerationListingDetailPage({
     const buttonBg = isDarkTheme ? 'bg-orange-600 hover:bg-orange-700' : 'bg-teal-600 hover:bg-teal-700';
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen flex flex-col ${bgColor}`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -232,6 +232,7 @@ export function ModerationListingDetailPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <Button
                     variant="ghost"
@@ -448,12 +449,12 @@ export function ModerationListingDetailPage({
                                     {isRejecting ? (
                                         <>
                                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Отклонение...
+                                            Удаление...
                                         </>
                                     ) : (
                                         <>
                                             <XCircle className="h-4 w-4 mr-2" />
-                                            Отклонить
+                                            Удалить
                                         </>
                                     )}
                                 </Button>
@@ -462,6 +463,7 @@ export function ModerationListingDetailPage({
                     </div>
                 </div>
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
 

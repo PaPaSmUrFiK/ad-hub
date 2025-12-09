@@ -16,8 +16,10 @@ import { CategoriesPage } from './components/CategoriesPage';
 import { AdminPanel } from './components/AdminPanel';
 import { ModerationPage } from './components/ModerationPage';
 import { ModerationListingDetailPage } from './components/ModerationListingDetailPage';
+import { FatalErrorPage } from './components/FatalErrorPage';
 import { tokenStorage, authAPI } from './api/auth';
 import { userAPI } from './api/user';
+import { notificationsAPI } from './api/notifications';
 
 export default function App() {
     // Восстанавливаем состояние из localStorage при загрузке
@@ -48,6 +50,9 @@ export default function App() {
     });
     const [isAdmin, setIsAdmin] = useState(false);
     const [isModerator, setIsModerator] = useState(false);
+    const [fatalError, setFatalError] = useState(null); // { message }
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [hasNotifications, setHasNotifications] = useState(false);
     
     // Сохраняем состояние в localStorage при изменении
     useEffect(() => {
@@ -73,9 +78,9 @@ export default function App() {
     // Обработчик истечения сессии
     useEffect(() => {
         const handleAuthExpired = () => {
-            console.log('Сессия истекла, перенаправляем на страницу входа');
             setIsAuthenticated(false);
             setIsAdmin(false);
+            setIsModerator(false);
             setCurrentPage('home');
             // Можно показать уведомление пользователю
             alert('Ваша сессия истекла. Пожалуйста, войдите снова.');
@@ -88,6 +93,19 @@ export default function App() {
         };
     }, []);
 
+    // Глобальный обработчик критических ошибок (недоступен сервер, 5xx и т.п.)
+    useEffect(() => {
+        const handleFatalError = (event) => {
+            const message = event?.detail || 'Произошла критическая ошибка. Работа приложения невозможна.';
+            console.error('Получена критическая ошибка:', message);
+            setFatalError({ message });
+            setCurrentPage('fatal-error');
+        };
+
+        window.addEventListener('fatal:error', handleFatalError);
+        return () => window.removeEventListener('fatal:error', handleFatalError);
+    }, []);
+
     // Проверяем авторизацию и роль при загрузке
     useEffect(() => {
         const checkAuth = async () => {
@@ -98,27 +116,31 @@ export default function App() {
                     // Используем userAPI.getMe(), который использует fetchWithAuth
                     // и автоматически обновит токен при необходимости
                     const me = await userAPI.getMe();
-                    console.log('Данные пользователя при загрузке:', me);
-                    
                     // Если запрос успешен, значит токены валидны
                     setIsAuthenticated(true);
                     
                     // Извлекаем роль из ответа (UserMeResponse возвращает role как строку)
                     const role = me.role || '';
-                    console.log('Извлеченная роль:', role, '(полный объект me:', me, ')');
                     
                     // Проверка ролей
                     const isUserAdmin = role === 'ADMIN';
                     const isUserModerator = role === 'MODERATOR' || role === 'ADMIN';
-                    console.log('Проверка роли ADMIN:', isUserAdmin, 'MODERATOR:', isUserModerator, '(роль:', role, ')');
                     
                     setIsAdmin(isUserAdmin);
                     setIsModerator(isUserModerator);
                     
-                    // Если роль не ADMIN, явно логируем это
-                    if (role && role !== 'ADMIN' && role !== 'MODERATOR') {
-                        console.log('Пользователь не администратор и не модератор. Роль:', role);
+                    // Загружаем количество непрочитанных уведомлений
+                    try {
+                        const count = await notificationsAPI.getUnreadCount();
+                        setUnreadCount(count || 0);
+                        setHasNotifications((count || 0) > 0);
+                    } catch (e) {
+                        console.error('Ошибка при загрузке количества уведомлений:', e);
+                        setUnreadCount(0);
+                        // hasNotifications проверим отдельным запросом
                     }
+                    
+                    // Если роль не ADMIN/MODERATOR, просто продолжаем без доп. логов
                 } catch (error) {
                     console.error('Ошибка при получении данных пользователя:', error);
                     // Если ошибка связана с истечением сессии или авторизацией
@@ -127,35 +149,106 @@ export default function App() {
                         error.message.includes('Необходима авторизация') ||
                         error.message.includes('Unauthorized')
                     )) {
-                    // Очищаем токены и состояние
-                    tokenStorage.clearTokens();
-                    setIsAuthenticated(false);
-                    setIsAdmin(false);
-                    setIsModerator(false);
-                    setCurrentPage('home');
+                        // Очищаем токены и состояние
+                        tokenStorage.clearTokens();
+                        setIsAuthenticated(false);
+                        setIsAdmin(false);
+                        setIsModerator(false);
+                        setCurrentPage('home');
                         // Очищаем сохраненное состояние
                         localStorage.removeItem('currentPage');
                         localStorage.removeItem('selectedListingId');
+                    } else {
+                        // Для других ошибок просто сбрасываем авторизацию
+                        setIsAuthenticated(false);
+                        setIsAdmin(false);
+                        setIsModerator(false);
+                    }
+                }
             } else {
                 setIsAuthenticated(false);
                 setIsAdmin(false);
                 setIsModerator(false);
             }
-                }
-            } else {
-                setIsAuthenticated(false);
-                setIsAdmin(false);
-            }
         };
         checkAuth();
     }, []); // Убираем зависимость от isAuthenticated, чтобы не было бесконечного цикла
+
+    // Обновляем счетчик непрочитанных при изменении статуса авторизации
+    useEffect(() => {
+        const loadUnread = async () => {
+            if (!isAuthenticated) {
+                setUnreadCount(0);
+                return;
+            }
+            try {
+                const count = await notificationsAPI.getUnreadCount();
+                setUnreadCount(count || 0);
+            } catch (e) {
+                console.error('Ошибка при загрузке количества уведомлений:', e);
+            }
+        };
+        loadUnread();
+    }, [isAuthenticated]);
+
+    // Обновляем счетчик непрочитанных при изменении статуса авторизации
+    useEffect(() => {
+        const loadUnread = async () => {
+            if (!isAuthenticated) {
+                setUnreadCount(0);
+                return;
+            }
+            try {
+                const count = await notificationsAPI.getUnreadCount();
+                setUnreadCount(count || 0);
+            } catch (e) {
+                console.error('Ошибка при загрузке количества уведомлений:', e);
+            }
+        };
+        loadUnread();
+    }, [isAuthenticated]);
+
+    // Дополнительно обновляем счетчик уведомлений при смене аутентификации
+    useEffect(() => {
+        const loadUnread = async () => {
+            if (!isAuthenticated) {
+                setUnreadCount(0);
+                setHasNotifications(false);
+                return;
+            }
+            try {
+                const count = await notificationsAPI.getUnreadCount();
+                setUnreadCount(count || 0);
+                setHasNotifications((count || 0) > 0);
+            } catch (e) {
+                console.error('Ошибка при загрузке количества уведомлений:', e);
+            }
+        };
+        loadUnread();
+    }, [isAuthenticated]);
+
+    // Проверяем наличие любых уведомлений (даже прочитанных), чтобы подсветить иконку
+    useEffect(() => {
+        const checkAnyNotifications = async () => {
+            if (!isAuthenticated) {
+                setHasNotifications(false);
+                return;
+            }
+            try {
+                const data = await notificationsAPI.getNotifications({ page: 1, size: 1 });
+                const hasAny = Array.isArray(data) ? data.length > 0 : (data?.content?.length || 0) > 0;
+                setHasNotifications(hasAny);
+            } catch (e) {
+                console.error('Ошибка при проверке наличия уведомлений:', e);
+            }
+        };
+        checkAnyNotifications();
+    }, [isAuthenticated]);
 
     // Убрана автоматическая перенаправление администратора на панель администратора
     // Администратор может свободно переходить на главную страницу и другие разделы
 
     const handleLogin = async () => {
-        console.log('handleLogin вызван');
-        
         // Проверяем, что токены действительно сохранены
         const accessToken = tokenStorage.getAccessToken();
         const refreshToken = tokenStorage.getRefreshToken();
@@ -165,30 +258,24 @@ export default function App() {
             throw new Error('Токены авторизации не найдены');
         }
         
-        console.log('Токены найдены, обновляем состояние');
         setIsAuthenticated(true);
         
         // Проверяем роль после входа
         try {
-            console.log('Получаем данные пользователя...');
             const me = await userAPI.getMe();
-            console.log('Данные пользователя получены:', me);
             
             // Извлекаем роль из ответа (UserMeResponse возвращает role как строку)
             const role = me.role || '';
-            console.log('Извлеченная роль при входе:', role, '(полный объект me:', me, ')');
             
             // Проверка ролей
             const isUserAdmin = role === 'ADMIN';
             const isUserModerator = role === 'MODERATOR' || role === 'ADMIN';
-            console.log('Проверка роли ADMIN при входе:', isUserAdmin, 'MODERATOR:', isUserModerator, '(роль:', role, ')');
             
             setIsAdmin(isUserAdmin);
             setIsModerator(isUserModerator);
             
             // Перенаправляем на главную страницу после успешного входа
             setCurrentPage('home');
-            console.log('Перенаправление на главную страницу после входа');
             
             // Убрано автоматическое перенаправление администратора
             // Администратор может свободно выбирать страницу через навигацию
@@ -262,7 +349,14 @@ export default function App() {
         onLogout: handleLogout,
         onNavigate: setCurrentPage,
         isAdmin,
-        isModerator
+        isModerator,
+        unreadCount,
+        onUnreadCountChange: (count) => {
+            setUnreadCount(count || 0);
+            setHasNotifications((count || 0) > 0);
+        },
+        hasNotifications,
+        onHasNotificationsChange: (flag) => setHasNotifications(!!flag)
     };
     
     // Логируем commonProps при изменении isAdmin
@@ -355,7 +449,6 @@ export default function App() {
                 return <CategoriesPage {...commonProps} />;
 
             case 'admin':
-                console.log('[App] Рендеринг AdminPanel - isAdmin из commonProps:', commonProps.isAdmin);
                 return <AdminPanel {...commonProps} initialTab={searchParams.adminTab || 'users'} />;
 
             case 'moderation':
@@ -378,12 +471,20 @@ export default function App() {
                     />
                 ) : null;
 
+            case 'fatal-error':
+                return (
+                    <FatalErrorPage
+                        {...commonProps}
+                        message={fatalError?.message}
+                    />
+                );
+
             default:
                 // Убрана автоматическая замена главной страницы на панель администратора
                 // Администратор может свободно переходить на главную страницу
                 // Панель администратора доступна через отдельную вкладку в навигации
                 return (
-                    <div className={isDarkTheme ? 'min-h-screen bg-neutral-950' : 'min-h-screen bg-stone-100'}>
+                    <div className={isDarkTheme ? 'min-h-screen bg-neutral-950 flex flex-col' : 'min-h-screen bg-stone-100 flex flex-col'}>
                         <Header
                             onLoginClick={() => setCurrentPage('login')}
                             onRegisterClick={() => setCurrentPage('register')}
@@ -396,34 +497,37 @@ export default function App() {
                             onNavigate={setCurrentPage}
                             isAdmin={isAdmin}
                             isModerator={isModerator}
+                            unreadCount={unreadCount}
                         />
-                        <Hero
-                            isDarkTheme={isDarkTheme}
-                            onSearch={handleSearch}
-                        />
-                        <Categories 
-                            isDarkTheme={isDarkTheme}
-                            onNavigate={(page, params) => {
-                                if (params && params.categoryId) {
-                                    setSearchParams({
-                                        query: null,
-                                        categoryId: params.categoryId,
-                                        minPrice: null,
-                                        maxPrice: null,
-                                        location: null,
-                                        sortBy: null,
-                                    });
-                                }
-                                setCurrentPage(page);
-                            }}
-                        />
-                        <FeaturedListings
-                            isDarkTheme={isDarkTheme}
-                            onViewListing={handleViewListing}
-                            onNavigate={setCurrentPage}
-                            isAuthenticated={isAuthenticated}
-                            onLoginClick={() => setCurrentPage('login')}
-                        />
+                        <main className="flex-1">
+                            <Hero
+                                isDarkTheme={isDarkTheme}
+                                onSearch={handleSearch}
+                            />
+                            <Categories 
+                                isDarkTheme={isDarkTheme}
+                                onNavigate={(page, params) => {
+                                    if (params && params.categoryId) {
+                                        setSearchParams({
+                                            query: null,
+                                            categoryId: params.categoryId,
+                                            minPrice: null,
+                                            maxPrice: null,
+                                            location: null,
+                                            sortBy: null,
+                                        });
+                                    }
+                                    setCurrentPage(page);
+                                }}
+                            />
+                            <FeaturedListings
+                                isDarkTheme={isDarkTheme}
+                                onViewListing={handleViewListing}
+                                onNavigate={setCurrentPage}
+                                isAuthenticated={isAuthenticated}
+                                onLoginClick={() => setCurrentPage('login')}
+                            />
+                        </main>
                         <Footer isDarkTheme={isDarkTheme} />
                     </div>
                 );

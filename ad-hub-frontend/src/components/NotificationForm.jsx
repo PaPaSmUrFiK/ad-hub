@@ -14,7 +14,7 @@ export function NotificationForm({
     userId,
     adId,
     isDarkTheme = false,
-    actionType = 'reject' // 'reject' или 'revision'
+    actionType = 'reject' // 'delete', 'reject' или 'revision'
 }) {
     const [notificationTypes, setNotificationTypes] = useState([]);
     const [selectedTypeId, setSelectedTypeId] = useState('');
@@ -28,7 +28,10 @@ export function NotificationForm({
         if (isOpen) {
             loadNotificationTypes();
             // Устанавливаем значения по умолчанию в зависимости от типа действия
-            if (actionType === 'reject') {
+            if (actionType === 'delete') {
+                setTitle('Ваше объявление было удалено');
+                setMessage('Объявление удалено модератором и недоступно для просмотра.');
+            } else if (actionType === 'reject') {
                 setTitle('Ваше объявление было отклонено');
                 setMessage('К сожалению, ваше объявление не прошло модерацию и было отклонено.');
             } else if (actionType === 'revision') {
@@ -134,7 +137,11 @@ export function NotificationForm({
             <div className={`relative ${bgColor} ${borderColor} border rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
                 <div className="sticky top-0 flex items-center justify-between p-6 border-b border-inherit bg-inherit">
                     <h2 className={`${textColor} text-xl font-semibold`}>
-                        {actionType === 'reject' ? 'Отправить уведомление об отклонении' : 'Отправить уведомление о доработке'}
+                        {actionType === 'delete'
+                            ? 'Отправить уведомление об удалении'
+                            : actionType === 'reject'
+                                ? 'Отправить уведомление об отклонении'
+                                : 'Отправить уведомление о доработке'}
                     </h2>
                     <button
                         onClick={handleClose}
@@ -241,4 +248,5 @@ export function NotificationForm({
         </div>
     );
 }
+
 

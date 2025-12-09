@@ -99,7 +99,7 @@ export function FavoritesPage({
     };
 
     return (
-        <div className={`min-h-screen ${bgColor}`}>
+        <div className={`min-h-screen ${bgColor} flex flex-col`}>
             <Header
                 onLoginClick={onLoginClick}
                 onRegisterClick={onLoginClick}
@@ -114,6 +114,7 @@ export function FavoritesPage({
                 isModerator={isModerator}
             />
 
+            <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="mb-8">
                     <h1 className={`${textColor} text-3xl font-bold mb-2`}>Избранные объявления</h1>
@@ -220,6 +221,7 @@ export function FavoritesPage({
                     </div>
                 )}
             </div>
+            </main>
 
             <Footer isDarkTheme={isDarkTheme} />
         </div>

@@ -19,8 +19,6 @@ export function AdminPanel({
     isAdmin = true, // По умолчанию true, так как это панель администратора, но должно передаваться из App.jsx
     isModerator = false
 }) {
-    // Логируем для отладки
-    console.log('[AdminPanel] Рендер - isAdmin:', isAdmin, 'isAuthenticated:', isAuthenticated);
     const [activeTab, setActiveTab] = useState(initialTab);
     
     // Обновляем активную вкладку при изменении initialTab
@@ -52,17 +50,13 @@ export function AdminPanel({
             setLoading(true);
             setError('');
             const me = await userAPI.getMe();
-            console.log('[AdminPanel] Данные пользователя:', me);
             // UserMeResponse возвращает role как строку
             const role = me.role || '';
-            console.log('[AdminPanel] Извлеченная роль:', role);
             setUserRole(role);
             
             if (role !== 'ADMIN') {
                 console.warn('[AdminPanel] Пользователь не является администратором. Роль:', role);
                 setError('У вас нет доступа к панели администратора');
-            } else {
-                console.log('[AdminPanel] Доступ подтвержден для администратора');
             }
         } catch (err) {
             console.error('Ошибка при проверке доступа:', err);

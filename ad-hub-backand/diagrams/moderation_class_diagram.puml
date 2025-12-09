@@ -1,0 +1,140 @@
+@startuml Модерация объявлений - Диаграмма классов
+
+!theme plain
+skinparam linetype ortho
+skinparam defaultFontSize 22
+skinparam classFontSize 24
+skinparam classAttributeFontSize 22
+skinparam classFontStyle bold
+left to right direction
+
+class AdminController {
+    + getPendingAds(page: Integer, size: Integer): ResponseEntity<List<PendingAdResponse>>
+    + approveAd(id: Long): ResponseEntity<ModerationActionResponse>
+    + rejectAd(id: Long): ResponseEntity<ModerationActionResponse>
+    + sendForRevision(id: Long): ResponseEntity<ModerationActionResponse>
+}
+
+class AdminAdService {
+    + getPendingAds(page: Integer, size: Integer): List<PendingAdResponse>
+    + approveAd(adId: Long): ModerationActionResponse
+    + rejectAd(adId: Long): ModerationActionResponse
+    + sendForRevision(adId: Long): ModerationActionResponse
+    - mapToPendingResponse(ad: Ad): PendingAdResponse
+}
+
+class Ad {
+    - id: Long
+    - title: String
+    - description: String
+    - price: BigDecimal
+    - currency: String
+    - location: String
+    - status: AdStatus
+    - user: User
+    - viewCount: Integer
+    - createdAt: LocalDateTime
+    - updatedAt: LocalDateTime
+}
+
+class Notification {
+    - id: Long
+    - user: User
+    - notificationType: NotificationType
+    - title: String
+    - message: String
+    - relatedAd: Ad
+    - sentAt: LocalDateTime
+    - isRead: Boolean
+    - readAt: LocalDateTime
+}
+
+class NotificationType {
+    - id: Long
+    - name: String
+    - template: String
+    - description: String
+    - createdAt: LocalDateTime
+}
+
+class User {
+    - id: Long
+    - username: String
+    - email: String
+}
+
+class CreateNotificationRequest {
+    + userId: Long
+    + notificationTypeId: Long
+    + title: String
+    + message: String
+    + relatedAdId: Long
+}
+
+class PendingAdResponse {
+    + id: Long
+    + title: String
+    + description: String
+    + price: BigDecimal
+    + currency: String
+    + location: String
+    + status: AdStatus
+    + userId: Long
+    + userUsername: String
+    + userEmail: String
+    + categoryId: Long
+    + categoryName: String
+    + viewCount: Integer
+    + mediaFiles: List<AdMediaResponse>
+    + createdAt: LocalDateTime
+    + updatedAt: LocalDateTime
+}
+
+class ModerationActionResponse {
+    + adId: Long
+    + newStatus: AdStatus
+    + message: String
+}
+
+enum AdStatus {
+    ACTIVE
+    DRAFT
+    ON_MODERATION
+    BLOCKED
+    DELETED
+    ARCHIVED
+}
+
+' ========== УПРАВЛЕНИЕ ПРОЦЕССОМ ==========
+AdminController --> AdminAdService
+
+' ========== КОМПОЗИЦИЯ (сильная связь, владение) ==========
+Ad "M" *-- "1" User
+Notification "1" *-- "1" User
+Notification "1" *-- "1" NotificationType
+
+' ========== АГРЕГАЦИЯ (слабая связь, использование) ==========
+Notification "1" o-- "0..1" Ad
+
+' ========== ЗАВИСИМОСТЬ - Входные данные ==========
+AdminAdService ..> CreateNotificationRequest
+
+' ========== ЗАВИСИМОСТЬ - Выходные данные ==========
+AdminController ..> PendingAdResponse
+AdminController ..> ModerationActionResponse
+AdminAdService ..> PendingAdResponse
+AdminAdService ..> ModerationActionResponse
+
+' ========== ЗАВИСИМОСТЬ - Работа с сущностями ==========
+AdminAdService ..> Ad
+AdminAdService ..> Notification
+AdminAdService ..> User
+
+' ========== ИСПОЛЬЗОВАНИЕ ENUM ==========
+Ad ..> AdStatus
+PendingAdResponse ..> AdStatus
+ModerationActionResponse ..> AdStatus
+
+@enduml
+
+
